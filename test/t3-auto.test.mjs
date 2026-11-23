@@ -62,7 +62,7 @@ else process.stdout.write('Revoked session sess-1.\\n');
     baseDir,
     writeRuntime,
     calls,
-    env: { PATH: '', HOME: dir, T3_DISPATCH_T3_BIN: `${process.execPath} ${script}`, T3CODE_HOME: baseDir },
+    env: { PATH: '', HOME: dir, T3_DISPATCH_T3_BIN: `'${process.execPath}' '${script}'`, T3CODE_HOME: baseDir },
     cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
   };
 }
@@ -225,5 +225,44 @@ test('discoverT3Origin rejects a missing or dead runtime record', () => {
     assert.equal(discoverT3Origin({ baseDir: dir, origin: 'http://127.0.0.1:2' }), 'http://127.0.0.1:2');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('on Windows a t3.cmd shim runs through the shell with every argument quoted', async () => {
+  const sandbox = makeSandbox();
+  try {
+    sandbox.writeRuntime('http://127.0.0.1:1');
+    const seen = [];
+    const run = async (file, args, options) => {
+      seen.push({ file, args, shell: options.shell });
+      return { stdout: args.includes('"issue"') ? JSON.stringify({ sessionId: 'sess-1', token: TOKEN }) : '' };
+    };
+    const cli = { file: 'C:\\Program Files\\t3\\t3.cmd', args: [], env: {} };
+    await fetchT3AutoConfig({ env: sandbox.env, cli, run, platform: 'win32', fetchConfig: async () => SERVER_CONFIG });
+    assert.equal(seen.length, 2);
+    assert.equal(seen[0].file, '"C:\\Program Files\\t3\\t3.cmd"');
+    assert.equal(seen[0].shell, true);
+    assert.ok(seen.every(({ args }) => args.every((arg) => arg.startsWith('"') && arg.endsWith('"'))));
+  } finally {
+    sandbox.cleanup();
+  }
+});
+
+test('a session id that is not a plain token is rejected before any revoke command', async () => {
+  const sandbox = makeSandbox();
+  try {
+    sandbox.writeRuntime('http://127.0.0.1:1');
+    const seen = [];
+    const run = async (file, args) => {
+      seen.push(args);
+      return { stdout: JSON.stringify({ sessionId: 'x & del *', token: TOKEN }) };
+    };
+    await assert.rejects(
+      () => fetchT3AutoConfig({ env: sandbox.env, cli: { file: 't3', args: [], env: {} }, run, fetchConfig: async () => SERVER_CONFIG }),
+      /unexpected session payload/,
+    );
+    assert.equal(seen.length, 1);
+  } finally {
+    sandbox.cleanup();
   }
 });

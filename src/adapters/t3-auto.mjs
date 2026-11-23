@@ -120,17 +120,25 @@ export async function fetchT3AutoConfig({
   run = (file, args, options) => execFileAsync(file, args, options),
   fetchConfig = fetchT3ServerConfig,
   timeoutMs = 15_000,
+  platform = process.platform,
 } = {}) {
   const resolvedBase = baseDir ?? env.T3CODE_HOME ?? path.join(homeDir, '.t3');
   const command = cli ?? discoverT3Cli({ env, homeDir });
   const serverOrigin = discoverT3Origin({ baseDir: resolvedBase, origin: origin ?? env.T3_DISPATCH_ORIGIN });
-  const exec = (args) =>
-    run(command.file, [...command.args, ...args, '--base-dir', resolvedBase], {
+  // Windows 上 npm 装的 t3 是 t3.cmd，Node 只能经 shell 执行批处理，参数需逐个加引号。
+  const viaShell = platform === 'win32' && /\.(cmd|bat)$/i.test(command.file);
+  const quote = (arg) => `"${String(arg).replace(/"/g, '""')}"`;
+  const exec = (args) => {
+    const argv = [command.file, ...command.args, ...args, '--base-dir', resolvedBase];
+    const [file, ...rest] = viaShell ? argv.map(quote) : argv;
+    return run(file, rest, {
       env: { ...env, ...command.env },
       timeout: timeoutMs,
       maxBuffer: 64 * 1024,
       windowsHide: true,
+      shell: viaShell,
     });
+  };
 
   let issued;
   try {
@@ -139,7 +147,7 @@ export async function fetchT3AutoConfig({
   } catch {
     throw new T3RpcError('Failed to issue a temporary T3 session via the local T3 CLI', { code: 'T3_ISSUE_FAILED' });
   }
-  if (typeof issued?.token !== 'string' || typeof issued?.sessionId !== 'string') {
+  if (typeof issued?.token !== 'string' || !/^[\w-]+$/.test(issued?.sessionId ?? '')) {
     throw new T3RpcError('The local T3 CLI returned an unexpected session payload', { code: 'T3_ISSUE_FAILED' });
   }
 
