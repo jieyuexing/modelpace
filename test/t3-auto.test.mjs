@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { runCli } from '../bin/t3-dispatch.mjs';
-import { handleToolCall } from '../bin/t3-dispatch-mcp.mjs';
+import { runCli } from '../bin/modelpace.mjs';
+import { handleToolCall } from '../bin/modelpace-mcp.mjs';
 import { T3RpcError, discoverT3Cli, discoverT3Origin, fetchT3AutoConfig } from '../src/index.mjs';
 import { startMockT3Server } from './helpers/mock-t3-server.mjs';
 
@@ -38,7 +38,7 @@ const SERVER_CONFIG = {
 
 // 模拟官方 T3 CLI：issue 打印会话 JSON，所有调用记入日志。
 function makeSandbox({ failIssue = false } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-auto-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-auto-'));
   const baseDir = path.join(dir, 't3-home');
   const log = path.join(dir, 'calls.jsonl');
   const script = path.join(dir, 'mock-t3.mjs');
@@ -62,7 +62,7 @@ else process.stdout.write('Revoked session sess-1.\\n');
     baseDir,
     writeRuntime,
     calls,
-    env: { PATH: '', HOME: dir, T3_DISPATCH_T3_BIN: `'${process.execPath}' '${script}'`, T3CODE_HOME: baseDir },
+    env: { PATH: '', HOME: dir, MODELPACE_T3_BIN: `'${process.execPath}' '${script}'`, T3CODE_HOME: baseDir },
     cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
   };
 }
@@ -75,7 +75,7 @@ test('fetchT3AutoConfig issues a 2-minute session through the official CLI and a
     const config = await fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir });
     assert.equal(config.providers[0].instanceId, 'codex');
     assert.deepEqual(sandbox.calls(), [
-      ['auth', 'session', 'issue', '--scope', 'orchestration:read', '--ttl', '2m', '--label', 't3-dispatch', '--json', '--base-dir', sandbox.baseDir],
+      ['auth', 'session', 'issue', '--scope', 'orchestration:read', '--ttl', '2m', '--label', 'modelpace', '--json', '--base-dir', sandbox.baseDir],
       ['auth', 'session', 'revoke', 'sess-1', '--base-dir', sandbox.baseDir],
     ]);
   } finally {
@@ -159,7 +159,7 @@ test('auto discovery reads only the runtime record and never credential files', 
   }
 });
 
-test('CLI plan --t3-auto and MCP dispatch_plan with T3_DISPATCH_AUTO=1 plan from the local T3 and revoke', async () => {
+test('CLI plan --t3-auto and MCP dispatch_plan with MODELPACE_AUTO=1 plan from the local T3 and revoke', async () => {
   const sandbox = makeSandbox();
   const server = await startMockT3Server({ expectedToken: TOKEN, serverConfigPayload: SERVER_CONFIG });
   try {
@@ -172,11 +172,11 @@ test('CLI plan --t3-auto and MCP dispatch_plan with T3_DISPATCH_AUTO=1 plan from
     assert.ok(['run', 'wait', 'redeem', 'refresh', 'pause'].includes(JSON.parse(out).action));
     assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke']);
 
-    const decision = await handleToolCall('dispatch_plan', { task: 'slice' }, { env: { ...sandbox.env, T3_DISPATCH_AUTO: '1' }, now: () => NOW });
+    const decision = await handleToolCall('dispatch_plan', { task: 'slice' }, { env: { ...sandbox.env, MODELPACE_AUTO: '1' }, now: () => NOW });
     assert.ok(decision.candidates.length > 0);
     assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke', 'issue', 'revoke']);
 
-    await assert.rejects(() => handleToolCall('dispatch_plan', {}, { env: { ...sandbox.env, T3_DISPATCH_T3_BIN: '' }, now: () => NOW }), /No usage source/);
+    await assert.rejects(() => handleToolCall('dispatch_plan', {}, { env: { ...sandbox.env, MODELPACE_T3_BIN: '' }, now: () => NOW }), /No usage source/);
   } finally {
     await server.close();
     sandbox.cleanup();
@@ -184,7 +184,7 @@ test('CLI plan --t3-auto and MCP dispatch_plan with T3_DISPATCH_AUTO=1 plan from
 });
 
 test('discoverT3Cli prefers the env override, then PATH, then a macOS bundle with the T3 bundle id', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-discover-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-discover-'));
   try {
     const bin = path.join(dir, 'bin');
     fs.mkdirSync(bin);
@@ -203,7 +203,7 @@ test('discoverT3Cli prefers the env override, then PATH, then a macOS bundle wit
     const t3App = makeApp('T3 Code', 'com.t3tools.t3code');
     const appDirs = [path.join(dir, 'Applications')];
 
-    assert.equal(discoverT3Cli({ env: { PATH: bin, T3_DISPATCH_T3_BIN: '/opt/t3 --flag' }, platform: 'darwin', appDirs }).file, '/opt/t3');
+    assert.equal(discoverT3Cli({ env: { PATH: bin, MODELPACE_T3_BIN: '/opt/t3 --flag' }, platform: 'darwin', appDirs }).file, '/opt/t3');
     assert.equal(discoverT3Cli({ env: { PATH: bin }, platform: 'darwin', appDirs }).source, 'path');
     const app = discoverT3Cli({ env: { PATH: '' }, platform: 'darwin', appDirs });
     assert.equal(app.file, t3App);
@@ -216,7 +216,7 @@ test('discoverT3Cli prefers the env override, then PATH, then a macOS bundle wit
 });
 
 test('discoverT3Origin rejects a missing or dead runtime record', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-origin-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-origin-'));
   try {
     assert.throws(() => discoverT3Origin({ baseDir: dir }), (error) => error.code === 'T3_SERVER_NOT_FOUND');
     fs.mkdirSync(path.join(dir, 'userdata'));

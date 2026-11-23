@@ -1,18 +1,18 @@
 ---
-name: t3-dispatch
+name: modelpace
 description: Choose which T3 Code provider instance and model should take a delegated task, using live quota pacing and past acceptance records, and record the verified outcome afterwards. Use before calling delegate_task when more than one provider/model could take the work or quota may be tight, and after independently verifying a delegated result. Triggers on requests such as "which model should run this", "dispatch this task", "check my quota before delegating", "record this result", "which model passes more often".
 license: MIT
-compatibility: Needs Node.js 22+ and the t3-dispatch CLI or its MCP server (dispatch_plan, dispatch_record, dispatch_scores, dispatch_speed). Live quota needs a running T3 Code; replaying a saved snapshot works offline.
+compatibility: Needs Node.js 22+ and the modelpace CLI or its MCP server (dispatch_plan, dispatch_record, dispatch_scores, dispatch_speed). Live quota needs a running T3 Code; replaying a saved snapshot works offline.
 ---
 
-# t3-dispatch
+# modelpace
 
-`t3-dispatch` recommends a `delegate_task` target; it never starts work itself. `t3-dispatch` below is `node <checkout>/bin/t3-dispatch.mjs` or `npx t3-dispatch`; each CLI command has an MCP tool of the same purpose (`dispatch_plan`, `dispatch_record`, `dispatch_scores`, `dispatch_speed`). Full setup, privacy notes and troubleshooting: [AGENTS.md](../../AGENTS.md). Field reference: [docs/SCHEMA.md](../../docs/SCHEMA.md).
+`modelpace` recommends a `delegate_task` target; it never starts work itself. `modelpace` below is `node <checkout>/bin/modelpace.mjs` or `npx modelpace`; each CLI command has an MCP tool of the same purpose (`dispatch_plan`, `dispatch_record`, `dispatch_scores`, `dispatch_speed`). Full setup, privacy notes and troubleshooting: [AGENTS.md](../../AGENTS.md). Field reference: [docs/SCHEMA.md](../../docs/SCHEMA.md).
 
 ## 1. Plan before dispatching
 
 ```bash
-t3-dispatch plan --t3-auto --task slice --format json
+modelpace plan --t3-auto --task slice --format json
 ```
 
 - `--task`: `general` | `research` | `review` | `slice` (bounded implementation piece) | `long` (large or hard work). It selects the slot through the config.
@@ -65,7 +65,7 @@ The `executor` in the record must be the identity the plan used, otherwise the r
 Save it as `record.json` (the same content ships as `examples/record.example.json`) and run:
 
 ```bash
-t3-dispatch record --json record.json
+modelpace record --json record.json
 ```
 
 All fifteen fields are required; a rejected record names the missing or wrong field. Judge honestly: `accepted` is whether the result was accepted after your verification, `firstPass` means no rework, `falseReport` means the executor claimed success that verification contradicted.
@@ -75,8 +75,8 @@ A candidate becomes `qualified` after 5 successful records for the same executor
 ## 3. Review rankings and speed
 
 ```bash
-t3-dispatch scores
-t3-dispatch speed --days 30
+modelpace scores
+modelpace speed --days 30
 ```
 
-`scores` shows pass rate with a 90% interval, sample count, median duration and cost per executor and task. `speed` ranks models by tok/s measured from local session logs; rows marked `lowSample` (fewer than 20 long requests) are not used as tie-breakers. For a visual overview run `t3-dispatch dashboard --t3-auto --out dashboard.html` and render the file with `html_render`.
+`scores` shows pass rate with a 90% interval, sample count, median duration and cost per executor and task. `speed` ranks models by tok/s measured from local session logs; rows marked `lowSample` (fewer than 20 long requests) are not used as tie-breakers. For a visual overview run `modelpace dashboard --t3-auto --out dashboard.html` and render the file with `html_render`.

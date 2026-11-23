@@ -138,15 +138,15 @@ function defaultScoresFile(env) {
   const base = process.platform === 'win32'
     ? env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
     : env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
-  return path.join(base, 't3-dispatch', 'scores.jsonl');
+  return path.join(base, 'modelpace', 'scores.jsonl');
 }
 
-/** 账本路径优先级：file > scoresFile（--scores）> T3_DISPATCH_SCORES > 用户数据目录下的默认账本。 */
+/** 账本路径优先级：file > scoresFile（--scores）> MODELPACE_SCORES > 用户数据目录下的默认账本。 */
 export function resolveScoresFile({ file, scoresFile, env = process.env } = {}) {
   if (typeof file === 'string' && file.trim()) return path.resolve(file.trim());
   if (typeof scoresFile === 'string' && scoresFile.trim()) return path.resolve(scoresFile.trim());
-  if (typeof env.T3_DISPATCH_SCORES === 'string' && env.T3_DISPATCH_SCORES.trim()) {
-    return path.resolve(env.T3_DISPATCH_SCORES.trim());
+  if (typeof env.MODELPACE_SCORES === 'string' && env.MODELPACE_SCORES.trim()) {
+    return path.resolve(env.MODELPACE_SCORES.trim());
   }
   return defaultScoresFile(env);
 }

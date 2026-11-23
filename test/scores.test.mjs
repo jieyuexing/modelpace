@@ -95,7 +95,7 @@ test('declarative rejectRules, durationUnreadableProviders, and bad sample rejec
   assert.throws(() => validateDispatchRecord(makeRecord({ reworkRounds: -1 })), /reworkRounds/);
   assert.throws(() => validateDispatchRecord({ ...makeRecord(), extra: 1 }), /unknown field/);
 
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-scores-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-scores-'));
   const scoresFile = path.join(tmpDir, 'scores.jsonl');
   try {
     // durationMin null rejected unless provider in durationUnreadableProviders
@@ -180,25 +180,25 @@ test('summarizeDispatchScores and rankDispatchScores handle aliases and multi-cu
   assert.ok(Math.abs(claudeCell.costMedian - (0.04 * 200 * 12) / 52) < 1e-4);
 });
 
-test('账本路径：--scores / T3_DISPATCH_SCORES 优先，其余落到用户数据目录', () => {
+test('账本路径：--scores / MODELPACE_SCORES 优先，其余落到用户数据目录', () => {
   const cwd = process.cwd();
-  assert.equal(resolveScoresFile({ scoresFile: 'a.jsonl', env: { T3_DISPATCH_SCORES: 'b.jsonl' } }), path.resolve(cwd, 'a.jsonl'));
-  assert.equal(resolveScoresFile({ env: { T3_DISPATCH_SCORES: 'b.jsonl' } }), path.resolve(cwd, 'b.jsonl'));
+  assert.equal(resolveScoresFile({ scoresFile: 'a.jsonl', env: { MODELPACE_SCORES: 'b.jsonl' } }), path.resolve(cwd, 'a.jsonl'));
+  assert.equal(resolveScoresFile({ env: { MODELPACE_SCORES: 'b.jsonl' } }), path.resolve(cwd, 'b.jsonl'));
 
   const resolved = resolveScoresFile({ env: { XDG_DATA_HOME: '/xdg-data', LOCALAPPDATA: '/local-app' } });
   const base = process.platform === 'win32' ? '/local-app' : '/xdg-data';
-  assert.equal(resolved, path.join(base, 't3-dispatch', 'scores.jsonl'));
+  assert.equal(resolved, path.join(base, 'modelpace', 'scores.jsonl'));
 
   if (process.platform !== 'win32') {
     const home = resolveScoresFile({ env: {} });
-    assert.equal(home, path.join(os.homedir(), '.local', 'share', 't3-dispatch', 'scores.jsonl'));
+    assert.equal(home, path.join(os.homedir(), '.local', 'share', 'modelpace', 'scores.jsonl'));
   }
 });
 
 test('record 只收紧自己新建的目录，已存在目录的权限保持不变',
   { skip: process.platform === 'win32' },
   () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-mode-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-mode-'));
     try {
       const existing = path.join(root, 'project');
       fs.mkdirSync(existing, { mode: 0o755 });

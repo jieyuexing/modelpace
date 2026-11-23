@@ -16,20 +16,20 @@ import {
 } from '../src/index.mjs';
 import { planDispatch, resolveDays } from '../src/context.mjs';
 
-const HELP_EN = `t3-dispatch - Multi-model dispatch, quota pacing & acceptance scoring for T3 Code
+const HELP_EN = `modelpace - Multi-model dispatch, quota pacing & acceptance scoring for T3 Code
 
 Usage:
-  t3-dispatch plan [options]       Recommend the best delegate_task target
-  t3-dispatch record --json FILE|- Append a dispatch acceptance record (JSONL)
-  t3-dispatch scores [options]     Summarize and rank acceptance scores
-  t3-dispatch speed [options]      Local Speed leaderboard from session logs
-  t3-dispatch dashboard [options]  Write a self-contained HTML dashboard (quota, speed, scores)
-  t3-dispatch serve [options]      Serve the live dashboard on localhost
-  t3-dispatch validate --config F  Validate a dispatch.config.json (schemaVersion 2)
-  t3-dispatch init [--out FILE]    Print or write a starter dispatch.config.json
+  modelpace plan [options]       Recommend the best delegate_task target
+  modelpace record --json FILE|- Append a dispatch acceptance record (JSONL)
+  modelpace scores [options]     Summarize and rank acceptance scores
+  modelpace speed [options]      Local Speed leaderboard from session logs
+  modelpace dashboard [options]  Write a self-contained HTML dashboard (quota, speed, scores)
+  modelpace serve [options]      Serve the live dashboard on localhost
+  modelpace validate --config F  Validate a dispatch.config.json (schemaVersion 2)
+  modelpace init [--out FILE]    Print or write a starter dispatch.config.json
 
 Plan options:
-  --config FILE         Path to dispatch.config.json (or T3_DISPATCH_CONFIG)
+  --config FILE         Path to dispatch.config.json (or MODELPACE_CONFIG)
   --slot SLOT           Target slot name (defaults via taskToSlot)
   --task TASK           general | research | review | slice | long (default: general)
   --tier TIER           Sensitivity / permission tier
@@ -37,11 +37,11 @@ Plan options:
   --claude-model ID     Optional Claude model family (e.g. sonnet, opus)
   --snapshot FILE|-     Usage snapshot JSON file (v2, T3 getConfig, v1, or Claude JSON)
   --budget FILE         Optional pay-as-you-go budget overlay JSON file
-  --t3-origin URL       Live T3 server origin (or T3_DISPATCH_ORIGIN)
-  --t3-token TOKEN      Bearer token for T3 server (or T3_DISPATCH_TOKEN)
-  --t3-token-cmd CMD    Command to mint a short-lived bearer token (or T3_DISPATCH_TOKEN_CMD)
-  --t3-auto             Discover the local T3 Code and use a 2-minute session (or T3_DISPATCH_AUTO=1)
-  --scores FILE         JSONL acceptance scores file (or T3_DISPATCH_SCORES; default: $XDG_DATA_HOME/t3-dispatch/scores.jsonl)
+  --t3-origin URL       Live T3 server origin (or MODELPACE_ORIGIN)
+  --t3-token TOKEN      Bearer token for T3 server (or MODELPACE_TOKEN)
+  --t3-token-cmd CMD    Command to mint a short-lived bearer token (or MODELPACE_TOKEN_CMD)
+  --t3-auto             Discover the local T3 Code and use a 2-minute session (or MODELPACE_AUTO=1)
+  --scores FILE         JSONL acceptance scores file (or MODELPACE_SCORES; default: $XDG_DATA_HOME/modelpace/scores.jsonl)
   --speed FILE          Optional speed metrics JSON ({ "<model>": { "longRate": 120 } })
   --speed-scan          Measure Speed from local session logs and use it as a tie-breaker
   --days N              Speed window in days (default: 30)
@@ -61,31 +61,31 @@ Dashboard / serve options:
   serve --port N        Listen on 127.0.0.1:N (default: 0, a free port)
 
 Next steps:
-  1. t3-dispatch plan --t3-auto --task slice            Ask the local T3 Code for a recommendation
+  1. modelpace plan --t3-auto --task slice            Ask the local T3 Code for a recommendation
      (offline replay: plan --snapshot examples/sample-snapshot.json --now 2026-11-23T07:05:00Z --task slice)
   2. Read the "Action:" line: run -> pass the printed delegate_task target; refresh -> see the hint in the reasons
-  3. After verifying the delegated result: t3-dispatch record --json record.json   (template: examples/record.example.json)
+  3. After verifying the delegated result: modelpace record --json record.json   (template: examples/record.example.json)
   Agents: read AGENTS.md; field reference: docs/SCHEMA.md
 `;
 
-const HELP_ZH = `t3-dispatch - 面向 T3 Code 的多模型派发、节奏门控与验收评分引擎
+const HELP_ZH = `modelpace - 面向 T3 Code 的多模型派发、节奏门控与验收评分引擎
 
 用法：
-  t3-dispatch plan [选项]          推荐最合适的 delegate_task 目标
-  t3-dispatch record --json FILE|- 追加一条派发验收记录（JSONL）
-  t3-dispatch scores [选项]        汇总并排序历史验收评分
-  t3-dispatch speed [选项]         从本机会话日志统计 Speed 排行
-  t3-dispatch dashboard [选项]     输出自包含 HTML 仪表盘（额度、速度、评分）
-  t3-dispatch serve [选项]         在本机启动实时仪表盘
-  t3-dispatch validate --config F  校验 dispatch.config.json (schemaVersion 2)
-  t3-dispatch init [--out FILE]    输出或写入初始配置模板
+  modelpace plan [选项]          推荐最合适的 delegate_task 目标
+  modelpace record --json FILE|- 追加一条派发验收记录（JSONL）
+  modelpace scores [选项]        汇总并排序历史验收评分
+  modelpace speed [选项]         从本机会话日志统计 Speed 排行
+  modelpace dashboard [选项]     输出自包含 HTML 仪表盘（额度、速度、评分）
+  modelpace serve [选项]         在本机启动实时仪表盘
+  modelpace validate --config F  校验 dispatch.config.json (schemaVersion 2)
+  modelpace init [--out FILE]    输出或写入初始配置模板
 
 下一步：
-  1. t3-dispatch plan --t3-auto --task slice --lang zh   向本机 T3 Code 要一个派发建议
+  1. modelpace plan --t3-auto --task slice --lang zh   向本机 T3 Code 要一个派发建议
      （离线回放：plan --snapshot examples/sample-snapshot.json --now 2026-11-23T07:05:00Z --task slice）
   2. 看 "建议动作" 一行：run 就把打印的 delegate_task target 交给 delegate_task；refresh 看理由里的提示
-  3. 独立验证结果后记录：t3-dispatch record --json record.json（模板：examples/record.example.json）
-  选项与英文帮助相同（t3-dispatch --help）；Agent 请读 AGENTS.md
+  3. 独立验证结果后记录：modelpace record --json record.json（模板：examples/record.example.json）
+  选项与英文帮助相同（modelpace --help）；Agent 请读 AGENTS.md
 `;
 
 async function readStdin(stream) {
@@ -153,14 +153,14 @@ function writeOutput(out, content, write) {
 
 /** 未指定配置时回落到内置默认策略（官方 T3 Code 实例 id），builtin 标记用来在输出里提示。 */
 function loadConfig(configPath, env) {
-  const resolved = configPath ?? env.T3_DISPATCH_CONFIG;
+  const resolved = configPath ?? env.MODELPACE_CONFIG;
   if (!resolved) return { policy: normalizePolicy(starterPolicy()), builtin: true };
-  return { policy: normalizePolicy(readJsonFile(resolved, 'create one with "t3-dispatch init --out FILE", or omit --config to use the built-in policy')), builtin: false };
+  return { policy: normalizePolicy(readJsonFile(resolved, 'create one with "modelpace init --out FILE", or omit --config to use the built-in policy')), builtin: false };
 }
 
 const BUILTIN_NOTE = {
-  en: 'Note: using the built-in default policy (official T3 Code instance ids). Pass --config FILE to use your own; "t3-dispatch init" writes a starting point.\n',
-  zh: '提示：正在使用内置默认策略（官方 T3 Code 实例 id）。用 --config FILE 指定自己的策略，"t3-dispatch init" 可生成起点。\n',
+  en: 'Note: using the built-in default policy (official T3 Code instance ids). Pass --config FILE to use your own; "modelpace init" writes a starting point.\n',
+  zh: '提示：正在使用内置默认策略（官方 T3 Code 实例 id）。用 --config FILE 指定自己的策略，"modelpace init" 可生成起点。\n',
 };
 
 export async function runCli(
@@ -197,9 +197,9 @@ export async function runCli(
 
   if (cmd === 'validate') {
     const { opts } = parseFlags(rest, ['--config']);
-    const cfgPath = opts.config ?? env.T3_DISPATCH_CONFIG;
-    if (!cfgPath) throw new Error('validate requires --config FILE (create one with "t3-dispatch init --out dispatch.config.json")');
-    const policy = normalizePolicy(readJsonFile(cfgPath, 'create one with "t3-dispatch init --out FILE"'));
+    const cfgPath = opts.config ?? env.MODELPACE_CONFIG;
+    if (!cfgPath) throw new Error('validate requires --config FILE (create one with "modelpace init --out dispatch.config.json")');
+    const policy = normalizePolicy(readJsonFile(cfgPath, 'create one with "modelpace init --out FILE"'));
     write(`Valid dispatch policy (schemaVersion=${policy.schemaVersion}, slots=${Object.keys(policy.slots).join(', ')})\n`);
     return 0;
   }
@@ -255,7 +255,7 @@ export async function runCli(
     if (fixedNow !== null && cmd === 'serve') throw new Error('--now is not supported for serve');
 
     const { policy, builtin } = loadConfig(opts.config, env);
-    const snapshotSource = opts.snapshot ?? env.T3_DISPATCH_SNAPSHOT;
+    const snapshotSource = opts.snapshot ?? env.MODELPACE_SNAPSHOT;
     if (cmd === 'serve' && snapshotSource === '-') throw new Error('serve cannot read the snapshot from stdin');
     const waitMinutes = opts['wait-minutes'] !== undefined ? Number(opts['wait-minutes']) : 0;
     const request = {
@@ -265,7 +265,7 @@ export async function runCli(
       ...(opts['claude-model'] ? { claudeModel: opts['claude-model'] } : {}),
       waitMinutes,
     };
-    const hasSource = Boolean(snapshotSource || opts['t3-origin'] || env.T3_DISPATCH_ORIGIN || opts['t3-auto'] || env.T3_DISPATCH_AUTO === '1');
+    const hasSource = Boolean(snapshotSource || opts['t3-origin'] || env.MODELPACE_ORIGIN || opts['t3-auto'] || env.MODELPACE_AUTO === '1');
 
     const load = async () => {
       const currentMs = fixedNow ?? now();
@@ -278,12 +278,12 @@ export async function runCli(
         policy,
         request,
         rawSnapshot,
-        origin: opts['t3-origin'] ?? env.T3_DISPATCH_ORIGIN,
-        bearer: opts['t3-token'] ?? env.T3_DISPATCH_TOKEN,
-        tokenCommand: opts['t3-token-cmd'] ?? env.T3_DISPATCH_TOKEN_CMD,
-        auto: Boolean(opts['t3-auto']) || env.T3_DISPATCH_AUTO === '1',
+        origin: opts['t3-origin'] ?? env.MODELPACE_ORIGIN,
+        bearer: opts['t3-token'] ?? env.MODELPACE_TOKEN,
+        tokenCommand: opts['t3-token-cmd'] ?? env.MODELPACE_TOKEN_CMD,
+        auto: Boolean(opts['t3-auto']) || env.MODELPACE_AUTO === '1',
         budget: opts.budget ? readJsonFile(opts.budget) : null,
-        scoresPath: opts.scores ?? env.T3_DISPATCH_SCORES,
+        scoresPath: opts.scores ?? env.MODELPACE_SCORES,
         speedMetrics: opts.speed ? readJsonFile(opts.speed) : null,
         speedScan: Boolean(opts['speed-scan']) || cmd !== 'plan',
         days,
@@ -325,7 +325,7 @@ export async function runCli(
       load: async () => toDashboardInput(await load()),
       options: { days },
     });
-    write(`t3-dispatch dashboard: ${dashboard.url}\n`);
+    write(`modelpace dashboard: ${dashboard.url}\n`);
     await new Promise((resolve) => {
       if (signal?.aborted) return resolve();
       signal?.addEventListener('abort', resolve, { once: true });
@@ -350,7 +350,7 @@ export async function runCli(
     const speed = await collectSpeed({
       days,
       now: currentMs,
-      scoresFile: opts.scores ?? env.T3_DISPATCH_SCORES,
+      scoresFile: opts.scores ?? env.MODELPACE_SCORES,
       scoring: policy.scoring,
       env,
     });
@@ -369,7 +369,7 @@ export async function runCli(
     return 0;
   }
 
-  throw new Error(`Unknown command: ${cmd}. Run "t3-dispatch --help" for usage.`);
+  throw new Error(`Unknown command: ${cmd}. Run "modelpace --help" for usage.`);
 }
 
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -19,15 +19,15 @@ export function resolveSpeedPaths({ homeDir, env = process.env, ...overrides } =
   const listFromEnv = (value) => (value ? value.split(path.delimiter).filter(Boolean) : null);
   const cacheBase = env.XDG_CACHE_HOME ? env.XDG_CACHE_HOME : path.join(home, '.cache');
   return {
-    claudeDir: overrides.claudeDir ?? env.T3_DISPATCH_CLAUDE_DIR ?? path.join(home, '.claude', 'projects'),
-    codexDir: overrides.codexDir ?? env.T3_DISPATCH_CODEX_DIR ?? path.join(home, '.codex', 'sessions'),
+    claudeDir: overrides.claudeDir ?? env.MODELPACE_CLAUDE_DIR ?? path.join(home, '.claude', 'projects'),
+    codexDir: overrides.codexDir ?? env.MODELPACE_CODEX_DIR ?? path.join(home, '.codex', 'sessions'),
     opencodeDb:
-      overrides.opencodeDb ?? env.T3_DISPATCH_OPENCODE_DB ?? path.join(home, '.local', 'share', 'opencode', 'opencode.db'),
+      overrides.opencodeDb ?? env.MODELPACE_OPENCODE_DB ?? path.join(home, '.local', 'share', 'opencode', 'opencode.db'),
     antigravityPaths:
       overrides.antigravityPaths ??
-      listFromEnv(env.T3_DISPATCH_ANTIGRAVITY_PATHS) ?? [path.join(home, '.gemini', 'antigravity')],
+      listFromEnv(env.MODELPACE_ANTIGRAVITY_PATHS) ?? [path.join(home, '.gemini', 'antigravity')],
     cacheFile:
-      overrides.cacheFile ?? env.T3_DISPATCH_SPEED_CACHE ?? path.join(cacheBase, 't3-dispatch', 'speed-cache.json'),
+      overrides.cacheFile ?? env.MODELPACE_SPEED_CACHE ?? path.join(cacheBase, 'modelpace', 'speed-cache.json'),
   };
 }
 

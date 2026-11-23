@@ -1,12 +1,12 @@
 # Schema reference
 
-t3-dispatch reads three JSON shapes: the **config** (your policy), the **record** (one acceptance outcome per line in the ledger) and the **snapshot** (the quota state `plan` decides on). `t3-dispatch validate --config FILE` checks a config; every record is validated when it is written and read.
+modelpace reads three JSON shapes: the **config** (your policy), the **record** (one acceptance outcome per line in the ledger) and the **snapshot** (the quota state `plan` decides on). `modelpace validate --config FILE` checks a config; every record is validated when it is written and read.
 
 Working examples: [`examples/multi-account.config.json`](../examples/multi-account.config.json), [`examples/sample-snapshot.json`](../examples/sample-snapshot.json) and [`examples/multi-account.snapshot.json`](../examples/multi-account.snapshot.json).
 
 ## Config (`dispatch.config.json`, `schemaVersion: 2`)
 
-Without `--config` (or `T3_DISPATCH_CONFIG`) the built-in default policy is used: the official T3 Code default instance ids `codex`, `claudeAgent` and `antigravity`, one instance per driver. `t3-dispatch init` prints it as a starting point.
+Without `--config` (or `MODELPACE_CONFIG`) the built-in default policy is used: the official T3 Code default instance ids `codex`, `claudeAgent` and `antigravity`, one instance per driver. `modelpace init` prints it as a starting point.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ Candidates are tried in `priority` order (default: array order). Each one target
 
 ## Record (one JSON object per ledger line)
 
-The ledger is JSONL at `--scores FILE`, `T3_DISPATCH_SCORES`, or by default `$XDG_DATA_HOME/t3-dispatch/scores.jsonl` (`~/.local/share/t3-dispatch/scores.jsonl`; `%LOCALAPPDATA%\t3-dispatch\scores.jsonl` on Windows). All fifteen fields are required and unknown fields are rejected.
+The ledger is JSONL at `--scores FILE`, `MODELPACE_SCORES`, or by default `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). All fifteen fields are required and unknown fields are rejected.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

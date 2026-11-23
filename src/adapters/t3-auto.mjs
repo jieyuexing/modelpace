@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 
 export const T3_BUNDLE_ID = 'com.t3tools.t3code';
 const SESSION_TTL = '2m';
-const SESSION_LABEL = 't3-dispatch';
+const SESSION_LABEL = 'modelpace';
 // server.getConfig 只需要这一项权限；不传 --scope 时 T3 会签发包含终端与文件写入的标准客户端全套权限。
 const SESSION_SCOPE = 'orchestration:read';
 const SERVER_ENTRY = 'Contents/Resources/app.asar/apps/server/dist/bin.mjs';
@@ -63,10 +63,10 @@ function findMacApp(appDirs) {
   return null;
 }
 
-/** 发现本机 T3 Code CLI：T3_DISPATCH_T3_BIN > PATH 上的 t3 > macOS 应用包（bundle id 匹配）。 */
+/** 发现本机 T3 Code CLI：MODELPACE_T3_BIN > PATH 上的 t3 > macOS 应用包（bundle id 匹配）。 */
 export function discoverT3Cli({ env = process.env, homeDir = os.homedir(), platform = process.platform, appDirs } = {}) {
-  if (env.T3_DISPATCH_T3_BIN?.trim()) {
-    const [file, ...args] = splitCommandArgs(env.T3_DISPATCH_T3_BIN);
+  if (env.MODELPACE_T3_BIN?.trim()) {
+    const [file, ...args] = splitCommandArgs(env.MODELPACE_T3_BIN);
     return { file, args, env: {}, source: 'env' };
   }
   const onPath = findOnPath('t3', env);
@@ -75,7 +75,7 @@ export function discoverT3Cli({ env = process.env, homeDir = os.homedir(), platf
     const found = findMacApp(appDirs ?? ['/Applications', path.join(homeDir, 'Applications')]);
     if (found) return found;
   }
-  throw new T3RpcError('Local T3 Code CLI not found (set T3_DISPATCH_T3_BIN, or put t3 on PATH)', {
+  throw new T3RpcError('Local T3 Code CLI not found (set MODELPACE_T3_BIN, or put t3 on PATH)', {
     code: 'T3_CLI_NOT_FOUND',
   });
 }
@@ -124,7 +124,7 @@ export async function fetchT3AutoConfig({
 } = {}) {
   const resolvedBase = baseDir ?? env.T3CODE_HOME ?? path.join(homeDir, '.t3');
   const command = cli ?? discoverT3Cli({ env, homeDir });
-  const serverOrigin = discoverT3Origin({ baseDir: resolvedBase, origin: origin ?? env.T3_DISPATCH_ORIGIN });
+  const serverOrigin = discoverT3Origin({ baseDir: resolvedBase, origin: origin ?? env.MODELPACE_ORIGIN });
   // Windows 上 npm 装的 t3 是 t3.cmd，Node 只能经 shell 执行批处理，参数需逐个加引号。
   const viaShell = platform === 'win32' && /\.(cmd|bat)$/i.test(command.file);
   const quote = (arg) => `"${String(arg).replace(/"/g, '""')}"`;

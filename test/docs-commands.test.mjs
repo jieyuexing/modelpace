@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runCli } from '../bin/t3-dispatch.mjs';
+import { runCli } from '../bin/modelpace.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const PREFIXES = ['node ./bin/t3-dispatch.mjs ', 't3-dispatch '];
+const PREFIXES = ['node ./bin/modelpace.mjs ', 'modelpace '];
 
 /** `<!-- docs-test[ expect: 文本] -->` 后紧跟的 ```bash 代码块。 */
 function docTestBlocks(file) {
@@ -23,7 +23,7 @@ function docTestBlocks(file) {
 
 async function runCommand(command, cwd, env) {
   const prefix = PREFIXES.find((candidate) => command.startsWith(candidate));
-  assert.ok(prefix, `docs-test block may only run t3-dispatch commands: ${command}`);
+  assert.ok(prefix, `docs-test block may only run modelpace commands: ${command}`);
   const args = command.slice(prefix.length).split(/\s+/).filter(Boolean);
   let out = '';
   const previous = process.cwd();
@@ -43,7 +43,7 @@ for (const [file, minBlocks] of [['AGENTS.md', 4], ['README.md', 3], ['README.zh
     const blocks = docTestBlocks(file);
     assert.ok(blocks.length >= minBlocks, `${file} should keep at least ${minBlocks} runnable blocks, found ${blocks.length}`);
 
-    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-docs-')));
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-docs-')));
     fs.cpSync(path.join(ROOT, 'examples'), path.join(dir, 'examples'), { recursive: true });
     const env = { HOME: dir, XDG_DATA_HOME: path.join(dir, 'xdg') };
     try {

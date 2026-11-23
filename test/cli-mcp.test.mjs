@@ -5,19 +5,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { runCli } from '../bin/t3-dispatch.mjs';
-import { handleJsonRpcMessage } from '../bin/t3-dispatch-mcp.mjs';
+import { runCli } from '../bin/modelpace.mjs';
+import { handleJsonRpcMessage } from '../bin/modelpace-mcp.mjs';
 import { writeClaudeFixture, writeCodexFixture } from './helpers/speed-fixtures.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI_PATH = path.join(REPO_ROOT, 'bin', 't3-dispatch.mjs');
-const MCP_PATH = path.join(REPO_ROOT, 'bin', 't3-dispatch-mcp.mjs');
+const CLI_PATH = path.join(REPO_ROOT, 'bin', 'modelpace.mjs');
+const MCP_PATH = path.join(REPO_ROOT, 'bin', 'modelpace-mcp.mjs');
 const EXAMPLE_CONFIG = path.join(REPO_ROOT, 'examples', 'multi-account.config.json');
 const EXAMPLE_SNAPSHOT = path.join(REPO_ROOT, 'examples', 'multi-account.snapshot.json');
 const FIXED_NOW = Date.parse('2026-11-23T07:05:00.000Z');
 
 test('CLI init, validate, record, scores, and plan (en & zh, text & json)', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-cli-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-cli-'));
   const outConfig = path.join(tmpDir, 'dispatch.config.json');
   const scoresFile = path.join(tmpDir, 'scores.jsonl');
   const recordFile = path.join(tmpDir, 'record.json');
@@ -105,7 +105,7 @@ test('CLI binary runs as standalone subprocess', async () => {
 });
 
 test('MCP stdio server handles initialize, notifications/initialized, ping, tools/list, and tools/call over subprocess', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-mcp-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-mcp-'));
   const scoresFile = path.join(tmpDir, 'mcp-scores.jsonl');
 
   // Create a fresh snapshot relative to real Date.now() for the live subprocess
@@ -127,9 +127,9 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
     const child = spawn(process.execPath, [MCP_PATH], {
       env: {
         ...process.env,
-        T3_DISPATCH_CONFIG: EXAMPLE_CONFIG,
-        T3_DISPATCH_SNAPSHOT: liveSnapPath,
-        T3_DISPATCH_SCORES: scoresFile,
+        MODELPACE_CONFIG: EXAMPLE_CONFIG,
+        MODELPACE_SNAPSHOT: liveSnapPath,
+        MODELPACE_SCORES: scoresFile,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -161,7 +161,7 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
       });
 
     const initRes = await rpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } });
-    assert.equal(initRes.result.serverInfo.name, 't3-dispatch');
+    assert.equal(initRes.result.serverInfo.name, 'modelpace');
 
     // Notification produces no response
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
@@ -243,7 +243,7 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
 });
 
 test('MCP dispatch_speed ranks local speed over stdio and dispatch_plan can fold it in', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-mcp-speed-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-mcp-speed-'));
   try {
     const now = Date.now();
     writeClaudeFixture(path.join(tmpDir, 'claude'), now);
@@ -251,14 +251,14 @@ test('MCP dispatch_speed ranks local speed over stdio and dispatch_plan can fold
     const child = spawn(process.execPath, [MCP_PATH], {
       env: {
         PATH: process.env.PATH,
-        T3_DISPATCH_CLAUDE_DIR: path.join(tmpDir, 'claude'),
-        T3_DISPATCH_CODEX_DIR: path.join(tmpDir, 'codex'),
-        T3_DISPATCH_OPENCODE_DB: path.join(tmpDir, 'missing.db'),
-        T3_DISPATCH_ANTIGRAVITY_PATHS: path.join(tmpDir, 'missing'),
-        T3_DISPATCH_SPEED_CACHE: path.join(tmpDir, 'cache.json'),
-        T3_DISPATCH_SCORES: path.join(tmpDir, 'scores.jsonl'),
-        T3_DISPATCH_CONFIG: EXAMPLE_CONFIG,
-        T3_DISPATCH_SNAPSHOT: EXAMPLE_SNAPSHOT,
+        MODELPACE_CLAUDE_DIR: path.join(tmpDir, 'claude'),
+        MODELPACE_CODEX_DIR: path.join(tmpDir, 'codex'),
+        MODELPACE_OPENCODE_DB: path.join(tmpDir, 'missing.db'),
+        MODELPACE_ANTIGRAVITY_PATHS: path.join(tmpDir, 'missing'),
+        MODELPACE_SPEED_CACHE: path.join(tmpDir, 'cache.json'),
+        MODELPACE_SCORES: path.join(tmpDir, 'scores.jsonl'),
+        MODELPACE_CONFIG: EXAMPLE_CONFIG,
+        MODELPACE_SNAPSHOT: EXAMPLE_SNAPSHOT,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });

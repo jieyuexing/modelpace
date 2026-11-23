@@ -31,7 +31,7 @@ import {
 
 
 function makeHome() {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-speed-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-speed-'));
   return {
     home,
     options: {

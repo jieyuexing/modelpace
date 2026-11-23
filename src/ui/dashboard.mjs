@@ -98,7 +98,7 @@ export function renderDashboardHtml(input = {}) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>t3-dispatch dashboard</title>
+<title>modelpace dashboard</title>
 <style>${STYLE}</style>
 </head>
 <body>

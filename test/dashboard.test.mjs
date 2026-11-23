@@ -15,7 +15,7 @@ import {
   speedDispatchScores,
 } from '../src/index.mjs';
 import { MULTI_ACCOUNT_SNAPSHOT, multiAccountPolicy } from './helpers/multi-account.mjs';
-import { runCli } from '../bin/t3-dispatch.mjs';
+import { runCli } from '../bin/modelpace.mjs';
 import { runDashboardClient } from './helpers/fake-dom.mjs';
 import {
   FIXTURE_NOW,
@@ -29,7 +29,7 @@ const SNAPSHOT = path.join(ROOT, 'examples', 'sample-snapshot.json');
 const NOW = Date.parse('2026-11-23T07:05:00.000Z');
 
 async function makeInputs({ withLowSample = false } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-dash-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-dash-'));
   const options = {
     claudeDir: path.join(dir, 'claude'),
     codexDir: path.join(dir, 'codex'),
@@ -77,7 +77,7 @@ test('renderDashboardHtml is one self-contained file with three tabs and the Sha
     assert.match(html, /var\(--background/);
 
     for (const needle of ["tabQuota: 'Quota & Even Pace'", "tabSpeed: 'Speed Leaderboard'", "tabScores: 'Scores & Dispatch Audit'",
-      "createElement('canvas')", 'toBlob', 'ClipboardItem', 'roundRect', 'Generated with t3-dispatch', 'Dispatch Pass', 't3-dispatch:share-rows:v1']) {
+      "createElement('canvas')", 'toBlob', 'ClipboardItem', 'roundRect', 'Generated with modelpace', 'Dispatch Pass', 'modelpace:share-rows:v1']) {
       assert.ok(html.includes(needle), `missing ${needle}`);
     }
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
@@ -134,7 +134,7 @@ test('the dashboard client renders all tabs, EN/ZH, and draws and persists the S
     await page.buttons('Share Image')[0].click();
     await page.flush();
     assert.equal(page.drawn.canvases.at(-1).width, 2400);
-    assert.ok(page.drawn.texts.includes('Generated with t3-dispatch'));
+    assert.ok(page.drawn.texts.includes('Generated with modelpace'));
     assert.ok(page.drawn.texts.includes('Output Speed of the Models I Use'));
     assert.ok(page.drawn.texts.includes('Claude Opus 5.5'));
     assert.ok(page.drawn.texts.includes('1/1'));
@@ -147,13 +147,13 @@ test('the dashboard client renders all tabs, EN/ZH, and draws and persists the S
     await lowSampleBox.fire('change', { target: { checked: true } });
     await page.flush();
     assert.ok(page.drawn.texts.includes('DeepSeek V4'));
-    assert.deepEqual(Object.values(JSON.parse(page.storage['t3-dispatch:share-rows:v1'])), [true]);
+    assert.deepEqual(Object.values(JSON.parse(page.storage['modelpace:share-rows:v1'])), [true]);
 
     page.drawn.texts.length = 0;
     await page.buttons('ZH').at(-1).click();
     await page.flush();
-    assert.equal(page.storage['t3-dispatch:lang'], 'zh');
-    assert.ok(page.drawn.texts.includes('由 t3-dispatch 生成'));
+    assert.equal(page.storage['modelpace:lang'], 'zh');
+    assert.ok(page.drawn.texts.includes('由 modelpace 生成'));
     assert.ok(page.drawn.texts.includes('我用过的模型 · 输出速率排行'));
 
     await page.buttons('复制到剪贴板')[0].click();
@@ -169,22 +169,22 @@ test('the dashboard client renders all tabs, EN/ZH, and draws and persists the S
 });
 
 test('the dashboard client restores the language and share choices from storage and survives empty data', async () => {
-  const empty = runDashboardClient(renderDashboardHtml({}), { storage: { 't3-dispatch:lang': 'zh', 't3-dispatch:tab': 'speed' } });
+  const empty = runDashboardClient(renderDashboardHtml({}), { storage: { 'modelpace:lang': 'zh', 'modelpace:tab': 'speed' } });
   assert.match(empty.text(), /没有找到本地速度样本/);
-  const quota = runDashboardClient(renderDashboardHtml({}), { storage: { 't3-dispatch:tab': 'quota' } });
+  const quota = runDashboardClient(renderDashboardHtml({}), { storage: { 'modelpace:tab': 'quota' } });
   assert.match(quota.text(), /No usage snapshot available/);
-  const scores = runDashboardClient(renderDashboardHtml({}), { storage: { 't3-dispatch:tab': 'scores' } });
+  const scores = runDashboardClient(renderDashboardHtml({}), { storage: { 'modelpace:tab': 'scores' } });
   assert.match(scores.text(), /No acceptance records/);
   assert.match(scores.text(), /No dispatch decision available/);
 });
 
 function isolatedEnv(dir) {
   return {
-    T3_DISPATCH_CLAUDE_DIR: path.join(dir, 'claude'),
-    T3_DISPATCH_CODEX_DIR: path.join(dir, 'codex'),
-    T3_DISPATCH_OPENCODE_DB: path.join(dir, 'opencode.db'),
-    T3_DISPATCH_ANTIGRAVITY_PATHS: path.join(dir, 'ag'),
-    T3_DISPATCH_SPEED_CACHE: path.join(dir, 'cache.json'),
+    MODELPACE_CLAUDE_DIR: path.join(dir, 'claude'),
+    MODELPACE_CODEX_DIR: path.join(dir, 'codex'),
+    MODELPACE_OPENCODE_DB: path.join(dir, 'opencode.db'),
+    MODELPACE_ANTIGRAVITY_PATHS: path.join(dir, 'ag'),
+    MODELPACE_SPEED_CACHE: path.join(dir, 'cache.json'),
     PATH: '',
   };
 }

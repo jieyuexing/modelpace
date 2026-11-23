@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runCli } from '../bin/t3-dispatch.mjs';
+import { runCli } from '../bin/modelpace.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const README = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-const ENV = { HOME: os.tmpdir(), XDG_DATA_HOME: path.join(os.tmpdir(), 't3-dispatch-readme-none') };
+const ENV = { HOME: os.tmpdir(), XDG_DATA_HOME: path.join(os.tmpdir(), 'modelpace-readme-none') };
 
 // signal 预先中止：万一 serve 没有拒绝参数，也会立刻停下而不是挂住测试。
 async function run(args) {
@@ -19,7 +19,7 @@ async function run(args) {
 /** Quick Start 里第一条 plan 命令（续行合并后按空白切分）与紧随其后的 Output 块。 */
 function quickStart() {
   const section = README.slice(README.indexOf('## Quick Start'));
-  const command = /```bash\n# [^\n]*\n(node \.\/bin\/t3-dispatch\.mjs plan[\s\S]*?)\n```/.exec(section)[1];
+  const command = /```bash\n# [^\n]*\n(node \.\/bin\/modelpace\.mjs plan[\s\S]*?)\n```/.exec(section)[1];
   const output = /Output:\n\n```text\n([\s\S]*?)```/.exec(section)[1];
   return { args: command.replace(/\\\n/g, ' ').split(/\s+/).slice(2), output };
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "t3-dispatch",
+  "name": "modelpace",
   "version": "0.1.0",
   "description": "Quota pacing, local Speed leaderboard and acceptance scores for T3 Code, as read-only services and a side-panel dashboard.",
   "license": "MIT",
@@ -8,7 +8,7 @@
   "extensions": {
     "com.jieyuexing.t3code": {
       "apiVersion": 1,
-      "title": "t3-dispatch",
+      "title": "modelpace",
       "entry": "./index.mjs",
       "capabilities": ["settings", "views"],
       "inject": ["settings", "log", "handle"],

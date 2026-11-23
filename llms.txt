@@ -1,26 +1,26 @@
-# t3-dispatch
+# modelpace
 
 > Zero-dependency Node.js (>= 22) CLI and MCP server that recommends which T3 Code provider instance and model should take a delegated task, from live quota pacing (Even Pace, reset credits) and past acceptance records. It only advises; the calling agent still runs `delegate_task`.
 
-Start with AGENTS.md: it covers install, the validate / plan / record loop, MCP setup for Claude Code and Codex, data and privacy, and troubleshooting. Commands in this index are runnable from a clone with `node ./bin/t3-dispatch.mjs`.
+Start with AGENTS.md: it covers install, the validate / plan / record loop, MCP setup for Claude Code and Codex, data and privacy, and troubleshooting. Commands in this index are runnable from a clone with `node ./bin/modelpace.mjs`.
 
 ## Docs
 
-- [AGENTS.md](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/AGENTS.md): guide for coding agents — install, commands, MCP tools, privacy, troubleshooting
-- [README](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/README.md): overview, quick start, policy, ledger and T3 connection
-- [Schema reference](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/docs/SCHEMA.md): config, record and snapshot fields with examples
-- [Agent skill](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/skills/t3-dispatch/SKILL.md): when and how to plan before and record after `delegate_task`
-- [中文 README](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/README.zh-CN.md): Chinese overview
+- [AGENTS.md](https://raw.githubusercontent.com/jieyuexing/modelpace/main/AGENTS.md): guide for coding agents — install, commands, MCP tools, privacy, troubleshooting
+- [README](https://raw.githubusercontent.com/jieyuexing/modelpace/main/README.md): overview, quick start, policy, ledger and T3 connection
+- [Schema reference](https://raw.githubusercontent.com/jieyuexing/modelpace/main/docs/SCHEMA.md): config, record and snapshot fields with examples
+- [Agent skill](https://raw.githubusercontent.com/jieyuexing/modelpace/main/skills/modelpace/SKILL.md): when and how to plan before and record after `delegate_task`
+- [中文 README](https://raw.githubusercontent.com/jieyuexing/modelpace/main/README.zh-CN.md): Chinese overview
 
 ## Examples
 
-- [Sample snapshot](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/examples/sample-snapshot.json): usage snapshot for the built-in policy (replay with `--now 2026-11-23T07:05:00Z`)
-- [Record template](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/examples/record.example.json): a complete acceptance record
-- [Multi-account config](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/examples/multi-account.config.json): two Antigravity subscriptions plus Codex and Claude
-- [Multi-account snapshot](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/examples/multi-account.snapshot.json): matching snapshot for that config
+- [Sample snapshot](https://raw.githubusercontent.com/jieyuexing/modelpace/main/examples/sample-snapshot.json): usage snapshot for the built-in policy (replay with `--now 2026-11-23T07:05:00Z`)
+- [Record template](https://raw.githubusercontent.com/jieyuexing/modelpace/main/examples/record.example.json): a complete acceptance record
+- [Multi-account config](https://raw.githubusercontent.com/jieyuexing/modelpace/main/examples/multi-account.config.json): two Antigravity subscriptions plus Codex and Claude
+- [Multi-account snapshot](https://raw.githubusercontent.com/jieyuexing/modelpace/main/examples/multi-account.snapshot.json): matching snapshot for that config
 
 ## Optional
 
-- [Changelog](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/CHANGELOG.md): release notes
-- [Security policy](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/SECURITY.md): reporting and what the tool touches
-- [Contributing](https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/CONTRIBUTING.md): development conventions
+- [Changelog](https://raw.githubusercontent.com/jieyuexing/modelpace/main/CHANGELOG.md): release notes
+- [Security policy](https://raw.githubusercontent.com/jieyuexing/modelpace/main/SECURITY.md): reporting and what the tool touches
+- [Contributing](https://raw.githubusercontent.com/jieyuexing/modelpace/main/CONTRIBUTING.md): development conventions

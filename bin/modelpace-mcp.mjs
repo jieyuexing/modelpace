@@ -12,16 +12,16 @@ import {
 import { planDispatch, resolveDays } from '../src/context.mjs';
 import pkg from '../package.json' with { type: 'json' };
 
-const SERVER_INFO = { name: 't3-dispatch', version: pkg.version };
+const SERVER_INFO = { name: 'modelpace', version: pkg.version };
 const PROTOCOL_VERSION = '2024-11-05';
 
 const CONFIG_PATH = {
   type: 'string',
-  description: 'Path to a dispatch.config.json policy. Omit to use T3_DISPATCH_CONFIG, else the built-in policy for the official T3 Code instances codex, claudeAgent and antigravity.',
+  description: 'Path to a dispatch.config.json policy. Omit to use MODELPACE_CONFIG, else the built-in policy for the official T3 Code instances codex, claudeAgent and antigravity.',
 };
 const SCORES_PATH = {
   type: 'string',
-  description: 'Path to the JSONL acceptance ledger. Omit to use T3_DISPATCH_SCORES, else $XDG_DATA_HOME/t3-dispatch/scores.jsonl (%LOCALAPPDATA% on Windows).',
+  description: 'Path to the JSONL acceptance ledger. Omit to use MODELPACE_SCORES, else $XDG_DATA_HOME/modelpace/scores.jsonl (%LOCALAPPDATA% on Windows).',
 };
 const DAYS = {
   type: 'integer',
@@ -37,7 +37,7 @@ export const MCP_TOOLS = [
       'Call this BEFORE delegate_task to choose which provider instance and model should take a task. It gates candidates on live quota (Even Pace, reset credits), prefers models with passing acceptance records, and returns a recommendation only; it never starts anything. ' +
       'Read `action`: "run" -> pass `recommended.target` ({ providerInstanceId, model, options }) to delegate_task as is; "wait" -> retry at `waitUntil`; "redeem" -> ask the user to redeem the reset credit in `redeemCandidate`, then call again; "refresh" -> the usage snapshot is missing or stale, retry with a fresh source (t3Auto or t3Origin); "pause" -> every candidate is blocked, see `reasons`, retry at `nextCheckAt`. ' +
       'Keep `recommended.executor` and add a `site` label to it when you later call dispatch_record. ' +
-      'Needs a usage source: t3Auto (local T3 Code), t3Origin (with T3_DISPATCH_TOKEN), or snapshotPath/snapshot; without one the call fails with an error that names these options.',
+      'Needs a usage source: t3Auto (local T3 Code), t3Origin (with MODELPACE_TOKEN), or snapshotPath/snapshot; without one the call fails with an error that names these options.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -52,9 +52,9 @@ export const MCP_TOOLS = [
         claudeModel: { type: 'string', description: 'Claude model family (for example sonnet, opus) when a Claude window is shared by family.' },
         configPath: CONFIG_PATH,
         scoresPath: SCORES_PATH,
-        t3Auto: { type: 'boolean', description: 'Read quota from the local T3 Code through a 2-minute orchestration:read session that is revoked afterwards (also enabled by T3_DISPATCH_AUTO=1).' },
-        t3Origin: { type: 'string', description: 'URL of a running T3 server (for example http://127.0.0.1:3773). The bearer token comes from T3_DISPATCH_TOKEN or T3_DISPATCH_TOKEN_CMD.' },
-        snapshotPath: { type: 'string', description: 'Path to a saved usage snapshot JSON (see docs/SCHEMA.md); also T3_DISPATCH_SNAPSHOT. Snapshots older than 15 minutes produce "refresh".' },
+        t3Auto: { type: 'boolean', description: 'Read quota from the local T3 Code through a 2-minute orchestration:read session that is revoked afterwards (also enabled by MODELPACE_AUTO=1).' },
+        t3Origin: { type: 'string', description: 'URL of a running T3 server (for example http://127.0.0.1:3773). The bearer token comes from MODELPACE_TOKEN or MODELPACE_TOKEN_CMD.' },
+        snapshotPath: { type: 'string', description: 'Path to a saved usage snapshot JSON (see docs/SCHEMA.md); also MODELPACE_SNAPSHOT. Snapshots older than 15 minutes produce "refresh".' },
         snapshot: { type: 'object', description: 'The same as snapshotPath, passed inline: a UsageSnapshot v2 or a raw T3 server.getConfig response.' },
         budgetPath: { type: 'string', description: 'Optional pay-as-you-go budget overlay JSON for API-billed instances.' },
         includeSpeed: { type: 'boolean', description: 'Measure real tok/s from local session logs and use it to break ties between equally qualified candidates. Scans log files, so it is slower.' },
@@ -113,7 +113,7 @@ export const MCP_TOOLS = [
 ];
 
 function loadPolicy(configPath, env) {
-  const target = configPath ?? env.T3_DISPATCH_CONFIG;
+  const target = configPath ?? env.MODELPACE_CONFIG;
   if (!target) return starterPolicy();
   return normalizePolicy(JSON.parse(fs.readFileSync(path.resolve(target), 'utf8')));
 }
@@ -122,13 +122,13 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
   if (name === 'dispatch_plan') {
     const policy = loadPolicy(args.configPath, env);
     const currentMs = now();
-    const snapFile = args.snapshotPath ?? env.T3_DISPATCH_SNAPSHOT;
+    const snapFile = args.snapshotPath ?? env.MODELPACE_SNAPSHOT;
     const rawSnapshot = args.snapshot
       ?? (snapFile ? JSON.parse(fs.readFileSync(path.resolve(snapFile), 'utf8')) : null);
-    const origin = args.t3Origin ?? env.T3_DISPATCH_ORIGIN;
-    const auto = args.t3Auto === true || env.T3_DISPATCH_AUTO === '1';
+    const origin = args.t3Origin ?? env.MODELPACE_ORIGIN;
+    const auto = args.t3Auto === true || env.MODELPACE_AUTO === '1';
     if (!rawSnapshot && !origin && !auto) {
-      throw new Error('No usage source configured: set t3Auto: true (local T3 Code), t3Origin (with T3_DISPATCH_TOKEN), snapshotPath, or snapshot; the T3_DISPATCH_AUTO=1, T3_DISPATCH_ORIGIN and T3_DISPATCH_SNAPSHOT environment variables work too');
+      throw new Error('No usage source configured: set t3Auto: true (local T3 Code), t3Origin (with MODELPACE_TOKEN), snapshotPath, or snapshot; the MODELPACE_AUTO=1, MODELPACE_ORIGIN and MODELPACE_SNAPSHOT environment variables work too');
     }
     const planned = await planDispatch({
       policy,
@@ -141,11 +141,11 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
       },
       rawSnapshot,
       origin,
-      bearer: env.T3_DISPATCH_TOKEN,
-      tokenCommand: env.T3_DISPATCH_TOKEN_CMD,
+      bearer: env.MODELPACE_TOKEN,
+      tokenCommand: env.MODELPACE_TOKEN_CMD,
       auto,
       budget: args.budgetPath ? JSON.parse(fs.readFileSync(path.resolve(args.budgetPath), 'utf8')) : null,
-      scoresPath: args.scoresPath ?? env.T3_DISPATCH_SCORES,
+      scoresPath: args.scoresPath ?? env.MODELPACE_SCORES,
       speedMetrics: args.speedMetrics ?? null,
       speedScan: args.includeSpeed === true,
       days: resolveDays(args.days),
@@ -161,7 +161,7 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
     const speed = await collectSpeed({
       days: resolveDays(args.days),
       now: now(),
-      scoresFile: args.scoresPath ?? env.T3_DISPATCH_SCORES,
+      scoresFile: args.scoresPath ?? env.MODELPACE_SCORES,
       scoring: policy.scoring,
       env,
     });

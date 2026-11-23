@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runCli } from '../bin/t3-dispatch.mjs';
-import { MCP_TOOLS, handleJsonRpcMessage } from '../bin/t3-dispatch-mcp.mjs';
+import { runCli } from '../bin/modelpace.mjs';
+import { MCP_TOOLS, handleJsonRpcMessage } from '../bin/modelpace-mcp.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 const SNAPSHOT = path.join(ROOT, 'examples', 'sample-snapshot.json');
-const ENV = { HOME: os.tmpdir(), XDG_DATA_HOME: path.join(os.tmpdir(), 't3-dispatch-agent-docs-none') };
+const ENV = { HOME: os.tmpdir(), XDG_DATA_HOME: path.join(os.tmpdir(), 'modelpace-agent-docs-none') };
 
 async function cli(args) {
   let out = '';
@@ -18,11 +18,11 @@ async function cli(args) {
 }
 
 test('SKILL.md 符合 Agent Skills 规范的 frontmatter，示例记录与 examples/record.example.json 一致', () => {
-  const text = read('skills/t3-dispatch/SKILL.md');
+  const text = read('skills/modelpace/SKILL.md');
   const front = /^---\n([\s\S]*?)\n---\n/.exec(text)[1];
   const field = (key) => new RegExp(`^${key}: (.+)$`, 'm').exec(front)?.[1];
 
-  assert.equal(field('name'), 't3-dispatch');
+  assert.equal(field('name'), 'modelpace');
   assert.match(field('name'), /^[a-z0-9]+(-[a-z0-9]+)*$/);
   assert.ok(field('name').length <= 64);
   const description = field('description');
@@ -37,19 +37,19 @@ test('SKILL.md 符合 Agent Skills 规范的 frontmatter，示例记录与 examp
 
 test('llms.txt 按 llmstxt.org 格式，索引的每个文件都存在，核心入口都在索引里', () => {
   const lines = read('llms.txt').split('\n');
-  assert.equal(lines[0], '# t3-dispatch');
+  assert.equal(lines[0], '# modelpace');
   assert.match(lines.find((line) => line.trim()  && line !== lines[0]), /^> /);
   assert.ok(lines.some((line) => line === '## Docs'));
   assert.ok(lines.some((line) => line === '## Optional'));
 
-  const base = 'https://raw.githubusercontent.com/jieyuexing/t3-dispatch/main/';
+  const base = 'https://raw.githubusercontent.com/jieyuexing/modelpace/main/';
   const links = lines.map((line) => /^- \[[^\]]+\]\((\S+)\)(?:: .+)?$/.exec(line)?.[1]).filter(Boolean);
   const files = links.map((link) => {
     assert.ok(link.startsWith(base), link);
     return link.slice(base.length);
   });
   for (const file of files) assert.ok(fs.statSync(path.join(ROOT, file)).isFile(), file);
-  for (const required of ['README.md', 'AGENTS.md', 'docs/SCHEMA.md', 'skills/t3-dispatch/SKILL.md', 'examples/record.example.json']) {
+  for (const required of ['README.md', 'AGENTS.md', 'docs/SCHEMA.md', 'skills/modelpace/SKILL.md', 'examples/record.example.json']) {
     assert.ok(files.includes(required), `${required} missing from llms.txt`);
   }
 });
@@ -78,7 +78,7 @@ test('MCP tools/list：每个工具与每个参数都有 agent 能据此选用�
 
 test('CLI --help 以「下一步」收尾，中英文都有', async () => {
   const en = (await cli(['--help'])).out;
-  assert.match(en, /Next steps:\n[\s\S]*t3-dispatch plan --t3-auto[\s\S]*examples\/record\.example\.json[\s\S]*AGENTS\.md/);
+  assert.match(en, /Next steps:\n[\s\S]*modelpace plan --t3-auto[\s\S]*examples\/record\.example\.json[\s\S]*AGENTS\.md/);
   const zh = (await cli(['--help', 'zh'])).out;
   assert.match(zh, /下一步：\n[\s\S]*plan --t3-auto[\s\S]*record\.example\.json/);
 });
@@ -86,8 +86,8 @@ test('CLI --help 以「下一步」收尾，中英文都有', async () => {
 test('错误信息带可执行的修法提示', async () => {
   await assert.rejects(cli(['plan']), /plan needs a usage source: pass --t3-auto .*--snapshot FILE/);
   await assert.rejects(cli(['plan', '--snapshot', path.join(os.tmpdir(), 'no-such-snapshot.json')]), /Cannot read .*no-such-snapshot\.json: ENOENT \(a saved usage snapshot; examples\/sample-snapshot\.json/);
-  await assert.rejects(cli(['plan', '--snapshot', SNAPSHOT, '--now', '2026-11-23T07:05:00Z', '--config', path.join(os.tmpdir(), 'no-such.json')]), /t3-dispatch init --out FILE/);
-  await assert.rejects(cli(['validate']), /t3-dispatch init --out dispatch\.config\.json/);
+  await assert.rejects(cli(['plan', '--snapshot', SNAPSHOT, '--now', '2026-11-23T07:05:00Z', '--config', path.join(os.tmpdir(), 'no-such.json')]), /modelpace init --out FILE/);
+  await assert.rejects(cli(['validate']), /modelpace init --out dispatch\.config\.json/);
   await assert.rejects(cli(['record']), /examples\/record\.example\.json/);
 
   const base = ['plan', '--snapshot', SNAPSHOT, '--now', '2026-11-23T07:05:00Z'];

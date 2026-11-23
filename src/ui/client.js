@@ -3,7 +3,7 @@
 
   const I18N = {
     en: {
-      title: 't3-dispatch dashboard',
+      title: 'modelpace dashboard',
       tabQuota: 'Quota & Even Pace', tabSpeed: 'Speed Leaderboard', tabScores: 'Scores & Dispatch Audit',
       generated: 'Generated', noInstances: 'No usage snapshot available.',
       remaining: 'remaining', resetsIn: 'resets in', evenPace: 'Even Pace', pool: 'Pool', noReset: 'no reset time',
@@ -28,10 +28,10 @@
       shareNoteSpeed: 'Speed = output tokens (incl. thinking) ÷ request wall time (incl. time to first token, network and queueing). Real-world speed on my machine, not vendor-reported decode speed.',
       shareNotePass: 'Tasks passed = delegated tasks that were accepted with no false report, no scope violation, stopped when access was denied and at most one rework round, out of all delegated tasks (all-time).',
       shareNoteChannel: 'The tag under each name is the client the model ran through. Speed is measured separately per client.',
-      shareBrand: 'Generated with t3-dispatch', periodJoin: ' to ',
+      shareBrand: 'Generated with modelpace', periodJoin: ' to ',
     },
     zh: {
-      title: 't3-dispatch 仪表盘',
+      title: 'modelpace 仪表盘',
       tabQuota: '额度与 Even Pace', tabSpeed: '速度排行', tabScores: '验收评分与派发审计',
       generated: '生成于', noInstances: '没有可用的用量快照。',
       remaining: '剩余', resetsIn: '重置于', evenPace: 'Even Pace', pool: '池', noReset: '无重置时间',
@@ -56,7 +56,7 @@
       shareNoteSpeed: '速率 = 输出 token（含思考）÷ 单次请求耗时（含首字等待、网络与排队），是这台机器上的实际体验，不是厂商标称的纯生成速度。',
       shareNotePass: '派发通过 = 派发给该模型的任务中，复核通过、未虚报、未越界、遇授权拒绝即停、返工不超过 1 轮的次数 / 派发次数（全部历史）。',
       shareNoteChannel: '名称下方标签为调用通道（客户端），同一模型经不同通道调用时速率分开统计。',
-      shareBrand: '由 t3-dispatch 生成', periodJoin: ' 至 ',
+      shareBrand: '由 modelpace 生成', periodJoin: ' 至 ',
     },
   };
 
@@ -74,9 +74,9 @@
     codex: ['Codex', VENDORS.openai.color], grok: ['Grok CLI', VENDORS.xai.color], opencode: ['OpenCode', VENDORS.other.color],
   };
   const EM_DASH = '—';
-  const KEY_LANG = 't3-dispatch:lang';
-  const KEY_TAB = 't3-dispatch:tab';
-  const KEY_ROWS = 't3-dispatch:share-rows:v1';
+  const KEY_LANG = 'modelpace:lang';
+  const KEY_TAB = 'modelpace:tab';
+  const KEY_ROWS = 'modelpace:share-rows:v1';
 
   const store = {
     get: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
@@ -365,9 +365,9 @@
     ctx.fillStyle = glow; ctx.fillRect(-W, -1200, W * 3, 2400 + height * 3); ctx.restore();
 
     let y = 52;
-    const badgeW = measure('t3-dispatch', 14) + 26;
+    const badgeW = measure('modelpace', 14) + 26;
     ctx.strokeStyle = '#2c3445'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(PAD + 0.5, y + 0.5, badgeW - 1, 26, 13); ctx.stroke();
-    text('t3-dispatch', PAD + 13, y + 13.5, { size: 14, color: '#aab4c6', spacing: 0.6 });
+    text('modelpace', PAD + 13, y + 13.5, { size: 14, color: '#aab4c6', spacing: 0.6 });
     y += 43;
     text(s.title, PAD, y + 24, { size: 40, weight: 700, color: '#e9ecf1', spacing: 0.3 });
     y += 58;

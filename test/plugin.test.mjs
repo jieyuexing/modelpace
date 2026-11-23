@@ -41,18 +41,18 @@ test('plugin.json follows the Agent Plugins 1.0 shape the T3 host loader accepts
 });
 
 test('the plugin serves read-only services and dashboard handlers by reusing the engine', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-plugin-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-plugin-'));
   const saved = { ...process.env };
   try {
     const now = Date.now();
     writeClaudeFixture(path.join(dir, 'claude'), now);
     writeCodexFixture(path.join(dir, 'codex'), now);
     Object.assign(process.env, {
-      T3_DISPATCH_CLAUDE_DIR: path.join(dir, 'claude'),
-      T3_DISPATCH_CODEX_DIR: path.join(dir, 'codex'),
-      T3_DISPATCH_OPENCODE_DB: path.join(dir, 'missing.db'),
-      T3_DISPATCH_ANTIGRAVITY_PATHS: path.join(dir, 'missing'),
-      T3_DISPATCH_SPEED_CACHE: path.join(dir, 'cache.json'),
+      MODELPACE_CLAUDE_DIR: path.join(dir, 'claude'),
+      MODELPACE_CODEX_DIR: path.join(dir, 'codex'),
+      MODELPACE_OPENCODE_DB: path.join(dir, 'missing.db'),
+      MODELPACE_ANTIGRAVITY_PATHS: path.join(dir, 'missing'),
+      MODELPACE_SPEED_CACHE: path.join(dir, 'cache.json'),
     });
     const settings = { snapshotPath: SNAPSHOT, t3Auto: false, days: 7, scoresPath: path.join(dir, 'scores.jsonl') };
     const services = {};

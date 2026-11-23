@@ -1,16 +1,16 @@
 {
-  "name": "t3-dispatch",
+  "name": "modelpace",
   "version": "0.1.0",
-  "description": "Zero-dependency multi-model dispatch, quota pacing, and acceptance-scoring engine for T3 Code",
+  "description": "Quota-paced multi-model dispatch engine for T3 Code (CLI, MCP, Agent Skill)",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jieyuexing/t3-dispatch.git"
+    "url": "git+https://github.com/jieyuexing/modelpace.git"
   },
-  "homepage": "https://github.com/jieyuexing/t3-dispatch#readme",
+  "homepage": "https://github.com/jieyuexing/modelpace#readme",
   "bugs": {
-    "url": "https://github.com/jieyuexing/t3-dispatch/issues"
+    "url": "https://github.com/jieyuexing/modelpace/issues"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -21,8 +21,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "t3-dispatch": "./bin/t3-dispatch.mjs",
-    "t3-dispatch-mcp": "./bin/t3-dispatch-mcp.mjs"
+    "modelpace": "./bin/modelpace.mjs",
+    "modelpace-mcp": "./bin/modelpace-mcp.mjs"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"
