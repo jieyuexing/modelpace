@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-23",
+  "taskId": "task-123",
+  "title": "Add retry to the sync job",
+  "task": "slice",
+  "executor": {
+    "provider": "codex",
+    "model": "gpt-5.3-codex",
+    "effort": "high",
+    "tier": "default",
+    "site": "local"
+  },
+  "scorer": "orchestrator",
+  "accepted": true,
+  "firstPass": true,
+  "reworkRounds": 0,
+  "scopeViolation": false,
+  "falseReport": false,
+  "stoppedOnDenial": null,
+  "durationMin": 4.2,
+  "quotaDelta": 3,
+  "note": "Verified with unit tests."
+}

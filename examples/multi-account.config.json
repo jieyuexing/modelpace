@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "tiers": ["work", "personal", "public"],
+  "defaultTier": "personal",
+  "taskToSlot": {
+    "general": "worker",
+    "research": "worker",
+    "review": "review",
+    "slice": "worker",
+    "long": "heavy"
+  },
+  "instances": {
+    "codex": {
+      "driver": "codex",
+      "scoreProvider": "codex",
+      "tiers": ["work", "personal", "public"],
+      "enabled": true,
+      "shortWindowMaxUsedPercent": 90
+    },
+    "claude": {
+      "driver": "claudeAgent",
+      "scoreProvider": "claude",
+      "tiers": ["work", "personal", "public"],
+      "enabled": true,
+      "shortWindowMaxUsedPercent": 90
+    },
+    "antigravity": {
+      "driver": "antigravity",
+      "scoreProvider": "antigravity-ultra",
+      "tiers": ["work", "personal", "public"],
+      "enabled": true,
+      "shortWindowMaxUsedPercent": 90
+    },
+    "antigravity-pro": {
+      "driver": "antigravity",
+      "scoreProvider": "antigravity-pro",
+      "tiers": ["personal", "public"],
+      "enabled": true,
+      "shortWindowMaxUsedPercent": 70
+    }
+  },
+  "slots": {
+    "worker": {
+      "candidates": [
+        {
+          "id": "codex-worker",
+          "instanceId": "codex",
+          "model": "gpt-5.3-codex",
+          "effort": "high",
+          "options": { "reasoningEffort": "high" },
+          "priority": 1
+        },
+        {
+          "id": "gemini-pro-worker",
+          "instanceId": "antigravity-pro",
+          "model": "gemini-4-hydrogen",
+          "pool": "gemini",
+          "effort": "high",
+          "maxShortUsedPercent": 70,
+          "priority": 2
+        },
+        {
+          "id": "gemini-ultra-worker",
+          "instanceId": "antigravity",
+          "model": "gemini-4-hydrogen",
+          "pool": "gemini",
+          "effort": "high",
+          "priority": 3
+        },
+        {
+          "id": "claude-worker",
+          "instanceId": "claude",
+          "model": "claude-sonnet-4-5",
+          "effort": "high",
+          "priority": 4
+        }
+      ]
+    },
+    "heavy": {
+      "candidates": [
+        {
+          "id": "gemini-carbon-heavy",
+          "instanceId": "antigravity",
+          "model": "gemini-4-carbon",
+          "pool": "carbon",
+          "effort": "high",
+          "tasks": ["long", "general", "slice"],
+          "priority": 1
+        },
+        {
+          "id": "claude-opus-heavy",
+          "instanceId": "claude",
+          "model": "claude-opus-4-5",
+          "effort": "high",
+          "priority": 2
+        },
+        {
+          "id": "codex-heavy",
+          "instanceId": "codex",
+          "model": "gpt-5.3-codex",
+          "effort": "xhigh",
+          "options": { "reasoningEffort": "xhigh" },
+          "priority": 3
+        }
+      ]
+    },
+    "review": {
+      "candidates": [
+        {
+          "id": "claude-review",
+          "instanceId": "claude",
+          "model": "claude-sonnet-4-5",
+          "effort": "high",
+          "tasks": ["review", "research"],
+          "priority": 1
+        },
+        {
+          "id": "codex-review",
+          "instanceId": "codex",
+          "model": "gpt-5.3-codex",
+          "effort": "high",
+          "priority": 2
+        }
+      ]
+    }
+  },
+  "pacing": {
+    "paceMarginPercent": 10,
+    "longTaskMinRemainingPercent": 30,
+    "defaultMinRemainingPercent": 20,
+    "shortWindowMaxUsedPercent": 90,
+    "recheckAfterMinutes": 15,
+    "maxSnapshotAgeMinutes": 15,
+    "resetCredit": {
+      "skipIfResetWithinHours": 6,
+      "expiryWarnHours": 72
+    },
+    "expiringBoost": {
+      "resetWithinHours": 24,
+      "minRemainingPercent": 30,
+      "maxShortUsedPercent": 70
+    }
+  },
+  "scoring": {
+    "mode": "demote",
+    "minPassRate": 0.85,
+    "minSamples": 5,
+    "speedTieBreakerMarginRatio": 0.15,
+    "costWeight": 0,
+    "aliases": {
+      "provider": { "claudeAgent": "claude" },
+      "tier": { "-": "default" }
+    },
+    "durationUnreadableProviders": [],
+    "rejectRules": [],
+    "disabledProviders": [],
+    "pricing": {
+      "currency": "USD",
+      "exchangeRates": { "USD": 6.67, "CNY": 1 },
+      "monthlyPrice": {
+        "codex": { "amount": 200, "currency": "USD" },
+        "claude": { "amount": 200, "currency": "USD" },
+        "antigravity-ultra": { "amount": 250, "currency": "USD" },
+        "antigravity-pro": { "amount": 20, "currency": "USD" }
+      }
+    }
+  }
+}

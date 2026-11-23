@@ -1,0 +1,87 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "t3-dispatch",
+  "version": "0.1.0",
+  "description": "Quota pacing, local Speed leaderboard and acceptance scores for T3 Code, as read-only services and a side-panel dashboard.",
+  "license": "MIT",
+  "keywords": ["dispatch", "quota", "speed", "t3-code"],
+  "extensions": {
+    "com.jieyuexing.t3code": {
+      "apiVersion": 1,
+      "title": "t3-dispatch",
+      "entry": "./index.mjs",
+      "capabilities": ["settings", "views"],
+      "inject": ["settings", "log", "handle"],
+      "views": [
+        {
+          "id": "dashboard",
+          "title": "Dispatch",
+          "placement": "side-panel",
+          "icon": "gauge",
+          "html": "./view.html"
+        }
+      ],
+      "settings": [
+        { "type": "boolean", "key": "t3Auto", "label": "Connect to the local T3 Code", "description": "Read quota through a short-lived session of this T3 Code. Off uses only the snapshot file.", "default": true },
+        { "type": "text", "key": "snapshotPath", "label": "Snapshot file", "description": "Optional usage snapshot JSON; takes precedence over the local T3 Code." },
+        { "type": "text", "key": "configPath", "label": "Dispatch config", "description": "Optional dispatch.config.json; the starter policy is used when empty." },
+        { "type": "text", "key": "scoresPath", "label": "Scores ledger", "description": "Optional JSONL acceptance ledger." },
+        { "type": "number", "key": "days", "label": "Speed window (days)", "default": 30 }
+      ],
+      "provides": [
+        {
+          "name": "dispatch.plan",
+          "methods": [
+            {
+              "name": "run",
+              "title": "Recommend a delegate_task target",
+              "description": "Quota-gated, quality- and speed-aware dispatch decision.",
+              "readOnly": true,
+              "agent": true,
+              "ui": true,
+              "input": {
+                "type": "object",
+                "properties": {
+                  "task": { "type": "string", "enum": ["general", "research", "review", "slice", "long"] },
+                  "tier": { "type": "string" },
+                  "slot": { "type": "string" },
+                  "waitMinutes": { "type": "number", "minimum": 0, "maximum": 1440 }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "dispatch.scores",
+          "methods": [
+            {
+              "name": "get",
+              "title": "Acceptance scores",
+              "description": "Beta 90% intervals, median duration and nominal cost per executor and task.",
+              "readOnly": true,
+              "agent": true,
+              "ui": true
+            }
+          ]
+        },
+        {
+          "name": "dispatch.speed",
+          "methods": [
+            {
+              "name": "get",
+              "title": "Speed leaderboard",
+              "description": "Median tok/s of long requests measured from local session logs.",
+              "readOnly": true,
+              "agent": true,
+              "ui": true,
+              "input": {
+                "type": "object",
+                "properties": { "days": { "type": "integer", "minimum": 1, "maximum": 365 } }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

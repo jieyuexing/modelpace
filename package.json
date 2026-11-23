@@ -1,0 +1,58 @@
+{
+  "name": "t3-dispatch",
+  "version": "0.1.0",
+  "description": "Zero-dependency multi-model dispatch, quota pacing, and acceptance-scoring engine for T3 Code",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jieyuexing/t3-dispatch.git"
+  },
+  "homepage": "https://github.com/jieyuexing/t3-dispatch#readme",
+  "bugs": {
+    "url": "https://github.com/jieyuexing/t3-dispatch/issues"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "t3-dispatch": "./bin/t3-dispatch.mjs",
+    "t3-dispatch-mcp": "./bin/t3-dispatch-mcp.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "skills/",
+    "examples/",
+    "docs/",
+    "AGENTS.md",
+    "llms.txt",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "agent",
+    "ai-agent",
+    "claude",
+    "codex",
+    "dashboard",
+    "dispatch",
+    "even-pace",
+    "mcp",
+    "multi-model",
+    "quota",
+    "speed",
+    "t3-code"
+  ]
+}

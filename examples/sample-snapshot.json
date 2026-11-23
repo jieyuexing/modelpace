@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 2,
+  "observedAt": "2026-11-23T07:00:00.000Z",
+  "source": "json",
+  "instances": {
+    "codex": {
+      "instanceId": "codex",
+      "driver": "codex",
+      "displayName": "Codex Pro",
+      "enabled": true,
+      "status": "ready",
+      "plan": "ChatGPT Pro 200 Subscription",
+      "checkedAt": "2026-11-23T07:00:00.000Z",
+      "detail": null,
+      "windows": [
+        {
+          "id": "primary",
+          "kind": "session",
+          "label": "5-hour limit",
+          "pool": null,
+          "modelIds": null,
+          "providerIds": null,
+          "usedPercent": 22,
+          "remainingPercent": 78,
+          "resetsAt": "2026-11-23T11:30:00.000Z",
+          "windowDurationMins": 300
+        },
+        {
+          "id": "secondary",
+          "kind": "weekly",
+          "label": "Weekly limit",
+          "pool": null,
+          "modelIds": null,
+          "providerIds": null,
+          "usedPercent": 40,
+          "remainingPercent": 60,
+          "resetsAt": "2026-11-27T07:00:00.000Z",
+          "windowDurationMins": 10080
+        }
+      ],
+      "resetCredits": {
+        "known": true,
+        "availableCount": 1,
+        "nextExpiresAt": "2026-11-30T00:00:00.000Z",
+        "cards": [
+          {
+            "creditId": "codex-card-1",
+            "resetType": "codexRateLimits",
+            "status": "available",
+            "resetsLeft": 1,
+            "coversWindowIds": null,
+            "coversWindowPrefixes": null,
+            "expiresAt": "2026-11-30T00:00:00.000Z"
+          }
+        ]
+      },
+      "budget": null
+    },
+    "claudeAgent": {
+      "instanceId": "claudeAgent",
+      "driver": "claudeAgent",
+      "displayName": "Claude Max",
+      "enabled": true,
+      "status": "ready",
+      "plan": "Max",
+      "checkedAt": "2026-11-23T07:00:00.000Z",
+      "detail": null,
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "5-hour limit",
+          "pool": null,
+          "modelIds": null,
+          "providerIds": null,
+          "usedPercent": 15,
+          "remainingPercent": 85,
+          "resetsAt": "2026-11-23T11:00:00.000Z",
+          "windowDurationMins": 300
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly · all models",
+          "pool": null,
+          "modelIds": null,
+          "providerIds": null,
+          "usedPercent": 30,
+          "remainingPercent": 70,
+          "resetsAt": "2026-11-25T07:00:00.000Z",
+          "windowDurationMins": 10080
+        }
+      ],
+      "resetCredits": {
+        "known": true,
+        "availableCount": 1,
+        "nextExpiresAt": "2026-11-29T00:00:00.000Z",
+        "cards": [
+          {
+            "creditId": "claude-weekly-1",
+            "resetType": "claudeWeekly",
+            "status": "available",
+            "resetsLeft": 1,
+            "coversWindowIds": null,
+            "coversWindowPrefixes": [
+              "seven_day"
+            ],
+            "expiresAt": "2026-11-29T00:00:00.000Z"
+          }
+        ]
+      },
+      "budget": null
+    },
+    "antigravity": {
+      "instanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Ultra",
+      "enabled": true,
+      "status": "ready",
+      "plan": "ultra",
+      "checkedAt": "2026-11-23T07:00:00.000Z",
+      "detail": null,
+      "windows": [
+        {
+          "id": "gemini-5h",
+          "kind": "session",
+          "label": "Gemini · 5-hour",
+          "pool": "gemini",
+          "modelIds": [
+            "gemini-4-neon",
+            "gemini-4-hydrogen"
+          ],
+          "providerIds": null,
+          "usedPercent": 10,
+          "remainingPercent": 90,
+          "resetsAt": "2026-11-23T12:00:00.000Z",
+          "windowDurationMins": 300
+        },
+        {
+          "id": "gemini-weekly",
+          "kind": "weekly",
+          "label": "Gemini · Weekly",
+          "pool": "gemini",
+          "modelIds": [
+            "gemini-4-neon",
+            "gemini-4-hydrogen"
+          ],
+          "providerIds": null,
+          "usedPercent": 20,
+          "remainingPercent": 80,
+          "resetsAt": "2026-11-28T07:00:00.000Z",
+          "windowDurationMins": 10080
+        },
+        {
+          "id": "gemini-carbon-5h",
+          "kind": "session",
+          "label": "Carbon · 5-hour",
+          "pool": "carbon",
+          "modelIds": [
+            "gemini-4-carbon"
+          ],
+          "providerIds": null,
+          "usedPercent": 5,
+          "remainingPercent": 95,
+          "resetsAt": "2026-11-23T12:00:00.000Z",
+          "windowDurationMins": 300
+        }
+      ],
+      "resetCredits": null,
+      "budget": null
+    }
+  }
+}

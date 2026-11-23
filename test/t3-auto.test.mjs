@@ -1,0 +1,229 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { runCli } from '../bin/t3-dispatch.mjs';
+import { handleToolCall } from '../bin/t3-dispatch-mcp.mjs';
+import { T3RpcError, discoverT3Cli, discoverT3Origin, fetchT3AutoConfig } from '../src/index.mjs';
+import { startMockT3Server } from './helpers/mock-t3-server.mjs';
+
+const NOW = Date.parse('2026-11-23T07:05:00.000Z');
+const TOKEN = 'demo-tok-42';
+const execFileAsync = promisify(execFile);
+
+const SERVER_CONFIG = {
+  providers: [
+    {
+      instanceId: 'codex',
+      driver: 'codex',
+      displayName: 'Codex',
+      enabled: true,
+      installed: true,
+      status: 'ready',
+      auth: { status: 'authenticated', label: 'ChatGPT Pro 200 Subscription' },
+      models: [{ id: 'gpt-5.3-codex' }],
+      usageLimits: {
+        checkedAt: '2026-11-23T07:00:00.000Z',
+        windows: [
+          { id: 'primary', kind: 'session', label: '5h', usedPercent: 15, resetsAt: '2026-11-23T11:00:00.000Z', windowDurationMins: 300 },
+          { id: 'secondary', kind: 'weekly', label: 'Weekly', usedPercent: 40, resetsAt: '2026-11-28T07:00:00.000Z', windowDurationMins: 10080 },
+        ],
+      },
+    },
+  ],
+};
+
+// 模拟官方 T3 CLI：issue 打印会话 JSON，所有调用记入日志。
+function makeSandbox({ failIssue = false } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-auto-'));
+  const baseDir = path.join(dir, 't3-home');
+  const log = path.join(dir, 'calls.jsonl');
+  const script = path.join(dir, 'mock-t3.mjs');
+  fs.writeFileSync(
+    script,
+    `import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + '\\n');
+if (${failIssue} && args.includes('issue')) process.exit(3);
+if (args.includes('issue')) process.stdout.write(JSON.stringify({ sessionId: 'sess-1', token: ${JSON.stringify(TOKEN)} }));
+else process.stdout.write('Revoked session sess-1.\\n');
+`,
+    'utf8',
+  );
+  fs.mkdirSync(path.join(baseDir, 'userdata'), { recursive: true });
+  const writeRuntime = (origin, pid = process.pid) =>
+    fs.writeFileSync(path.join(baseDir, 'userdata', 'server-runtime.json'), JSON.stringify({ version: 1, pid, port: 1, origin }), 'utf8');
+  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)) : []);
+  return {
+    dir,
+    baseDir,
+    writeRuntime,
+    calls,
+    env: { PATH: '', HOME: dir, T3_DISPATCH_T3_BIN: `${process.execPath} ${script}`, T3CODE_HOME: baseDir },
+    cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
+  };
+}
+
+test('fetchT3AutoConfig issues a 2-minute session through the official CLI and always revokes it', async () => {
+  const sandbox = makeSandbox();
+  const server = await startMockT3Server({ expectedToken: TOKEN, serverConfigPayload: SERVER_CONFIG });
+  try {
+    sandbox.writeRuntime(server.origin);
+    const config = await fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir });
+    assert.equal(config.providers[0].instanceId, 'codex');
+    assert.deepEqual(sandbox.calls(), [
+      ['auth', 'session', 'issue', '--scope', 'orchestration:read', '--ttl', '2m', '--label', 't3-dispatch', '--json', '--base-dir', sandbox.baseDir],
+      ['auth', 'session', 'revoke', 'sess-1', '--base-dir', sandbox.baseDir],
+    ]);
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('the session is revoked when fetching fails after issuing, and the original error survives', async () => {
+  const sandbox = makeSandbox();
+  const server = await startMockT3Server({ expectedToken: 'another-token', serverConfigPayload: SERVER_CONFIG });
+  try {
+    sandbox.writeRuntime(server.origin);
+    await assert.rejects(
+      () => fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir }),
+      (error) => error instanceof T3RpcError && error.code === 'WS_TICKET_FAILED',
+    );
+    assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke']);
+
+    const boom = new Error('boom');
+    await assert.rejects(
+      () => fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir, fetchConfig: async () => { throw boom; } }),
+      (error) => error === boom,
+    );
+    assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke', 'issue', 'revoke']);
+
+    await assert.rejects(
+      () => fetchT3AutoConfig({
+        env: sandbox.env,
+        homeDir: sandbox.dir,
+        run: async (file, args, options) => {
+          if (args.includes('revoke')) throw new Error('revoke failed');
+          return execFileAsync(file, args, options);
+        },
+        fetchConfig: async () => { throw boom; },
+      }),
+      (error) => error === boom,
+    );
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('a failed issue stops before any connection and revokes nothing', async () => {
+  const sandbox = makeSandbox({ failIssue: true });
+  try {
+    sandbox.writeRuntime('http://127.0.0.1:9');
+    await assert.rejects(
+      () => fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir, fetchConfig: async () => assert.fail('must not connect') }),
+      (error) => error instanceof T3RpcError && error.code === 'T3_ISSUE_FAILED',
+    );
+    assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue']);
+  } finally {
+    sandbox.cleanup();
+  }
+});
+
+test('auto discovery reads only the runtime record and never credential files', async () => {
+  const sandbox = makeSandbox();
+  const server = await startMockT3Server({ expectedToken: TOKEN, serverConfigPayload: SERVER_CONFIG });
+  try {
+    sandbox.writeRuntime(server.origin);
+    fs.mkdirSync(path.join(sandbox.baseDir, 'userdata', 'secrets'), { recursive: true });
+    fs.writeFileSync(path.join(sandbox.baseDir, 'userdata', 'secrets', 'auth.json'), '{"token":"leak"}');
+    const read = [];
+    const original = fs.readFileSync;
+    fs.readFileSync = (file, ...rest) => {
+      read.push(String(file));
+      return original(file, ...rest);
+    };
+    try {
+      await fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir });
+    } finally {
+      fs.readFileSync = original;
+    }
+    assert.deepEqual(read, [path.join(sandbox.baseDir, 'userdata', 'server-runtime.json')]);
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('CLI plan --t3-auto and MCP dispatch_plan with T3_DISPATCH_AUTO=1 plan from the local T3 and revoke', async () => {
+  const sandbox = makeSandbox();
+  const server = await startMockT3Server({ expectedToken: TOKEN, serverConfigPayload: SERVER_CONFIG });
+  try {
+    sandbox.writeRuntime(server.origin);
+    let out = '';
+    assert.equal(
+      await runCli(['plan', '--t3-auto', '--task', 'slice', '--format', 'json'], { env: sandbox.env, write: (s) => { out += s; }, now: () => NOW }),
+      0,
+    );
+    assert.ok(['run', 'wait', 'redeem', 'refresh', 'pause'].includes(JSON.parse(out).action));
+    assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke']);
+
+    const decision = await handleToolCall('dispatch_plan', { task: 'slice' }, { env: { ...sandbox.env, T3_DISPATCH_AUTO: '1' }, now: () => NOW });
+    assert.ok(decision.candidates.length > 0);
+    assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke', 'issue', 'revoke']);
+
+    await assert.rejects(() => handleToolCall('dispatch_plan', {}, { env: { ...sandbox.env, T3_DISPATCH_T3_BIN: '' }, now: () => NOW }), /No usage source/);
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('discoverT3Cli prefers the env override, then PATH, then a macOS bundle with the T3 bundle id', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-discover-'));
+  try {
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 't3'), '#!/bin/sh\n', { mode: 0o755 });
+    const makeApp = (name, id) => {
+      const macos = path.join(dir, 'Applications', `${name}.app`, 'Contents', 'MacOS');
+      fs.mkdirSync(macos, { recursive: true });
+      fs.writeFileSync(path.join(macos, name), '#!/bin/sh\n', { mode: 0o755 });
+      fs.writeFileSync(
+        path.join(dir, 'Applications', `${name}.app`, 'Contents', 'Info.plist'),
+        `<plist><dict><key>CFBundleIdentifier</key>\n<string>${id}</string></dict></plist>`,
+      );
+      return path.join(macos, name);
+    };
+    const other = makeApp('Other', 'com.example.other');
+    const t3App = makeApp('T3 Code', 'com.t3tools.t3code');
+    const appDirs = [path.join(dir, 'Applications')];
+
+    assert.equal(discoverT3Cli({ env: { PATH: bin, T3_DISPATCH_T3_BIN: '/opt/t3 --flag' }, platform: 'darwin', appDirs }).file, '/opt/t3');
+    assert.equal(discoverT3Cli({ env: { PATH: bin }, platform: 'darwin', appDirs }).source, 'path');
+    const app = discoverT3Cli({ env: { PATH: '' }, platform: 'darwin', appDirs });
+    assert.equal(app.file, t3App);
+    assert.notEqual(app.file, other);
+    assert.equal(app.env.ELECTRON_RUN_AS_NODE, '1');
+    assert.throws(() => discoverT3Cli({ env: { PATH: '' }, platform: 'linux', appDirs }), /not found/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('discoverT3Origin rejects a missing or dead runtime record', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't3-dispatch-origin-'));
+  try {
+    assert.throws(() => discoverT3Origin({ baseDir: dir }), (error) => error.code === 'T3_SERVER_NOT_FOUND');
+    fs.mkdirSync(path.join(dir, 'userdata'));
+    fs.writeFileSync(path.join(dir, 'userdata', 'server-runtime.json'), JSON.stringify({ pid: 2 ** 22 + 12345, origin: 'http://127.0.0.1:1' }));
+    assert.throws(() => discoverT3Origin({ baseDir: dir }), (error) => error.code === 'T3_SERVER_NOT_RUNNING');
+    assert.equal(discoverT3Origin({ baseDir: dir, origin: 'http://127.0.0.1:2' }), 'http://127.0.0.1:2');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

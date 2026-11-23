@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>t3-dispatch</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 16px; color-scheme: light dark; }
+    </style>
+  </head>
+  <body>
+    <p id="status">Loading…</p>
+    <script>
+      // 宿主桥：向父窗口报 ready，收到一个 MessagePort 后经它调用插件处理器；
+      // 页面本身由插件用 src/ui/dashboard.mjs 渲染，这里只负责把它写进当前文档。
+      const parentWindow = window.parent;
+      const pending = new Map();
+      let port = null;
+      let nextId = 1;
+      const call = (handler, input) =>
+        new Promise((resolve, reject) => {
+          const id = nextId++;
+          pending.set(id, { resolve, reject });
+          port.postMessage(JSON.stringify({ _tag: 'call', id, handler, input: input ?? null }));
+        });
+      window.addEventListener('message', (event) => {
+        if (event.source !== parentWindow || event.data?.type !== 't3-view:connect' || port) return;
+        port = event.ports[0];
+        port.onmessage = (message) => {
+          const body = JSON.parse(message.data);
+          if (body._tag === 'ping') port.postMessage(JSON.stringify({ _tag: 'pong', n: body.n }));
+          else if (body._tag === 'result') pending.get(body.id)?.resolve(body.value);
+          else if (body._tag === 'error') pending.get(body.id)?.reject(new Error(body.message));
+          if (body._tag === 'result' || body._tag === 'error') pending.delete(body.id);
+          if (body._tag === 'init') start();
+        };
+      });
+      const start = async () => {
+        try {
+          const html = await call('html');
+          globalThis.t3dBridgeCall = (name) => call(name);
+          document.open();
+          document.write(html);
+          document.close();
+        } catch (error) {
+          document.getElementById('status').textContent = error.message;
+        }
+      };
+      parentWindow.postMessage({ type: 't3-view:ready' }, '*');
+    </script>
+  </body>
+</html>
