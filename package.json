@@ -21,8 +21,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "modelpace": "./bin/modelpace.mjs",
-    "modelpace-mcp": "./bin/modelpace-mcp.mjs"
+    "modelpace": "bin/modelpace.mjs",
+    "modelpace-mcp": "bin/modelpace-mcp.mjs"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"
