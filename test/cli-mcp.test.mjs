@@ -221,6 +221,8 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
       params: { name: 'dispatch_scores', arguments: {} },
     });
     assert.equal(scoresRes.result.structuredContent.totalRecords, 1);
+    assert.equal(scoresRes.result.structuredContent.cells.length, 1);
+    assert.equal('records' in scoresRes.result.structuredContent, false, 'summary must not carry the raw ledger records');
 
     // Bad tool name returns isError: true
     const errRes = await rpc({

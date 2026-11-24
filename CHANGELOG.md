@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- MCP `dispatch_scores` no longer returns the raw ledger records next to the summary. With a few hundred records the result grew past what an MCP client accepts in one tool result; `modelpace scores --format json` still prints them.
+
 ## 0.1.0
 
 First public release (renamed from `t3-dispatch` to `modelpace`).

@@ -188,7 +188,9 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
 
   if (name === 'dispatch_scores') {
     const policy = loadPolicy(args.configPath, env);
-    return collectDispatchScores({ scoresFile: args.scoresPath, env }, policy.scoring);
+    // The raw ledger records stay out of the tool result: a few hundred of them exceed what a client accepts in one result.
+    const { records: _records, ...summary } = collectDispatchScores({ scoresFile: args.scoresPath, env }, policy.scoring);
+    return summary;
   }
 
   throw new Error(`Unknown tool: ${name}`);
