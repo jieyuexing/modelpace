@@ -3,6 +3,8 @@
 ## Unreleased
 
 - MCP `dispatch_scores` no longer returns the raw ledger records next to the summary. With a few hundred records the result grew past what an MCP client accepts in one tool result; `modelpace scores --format json` still prints them.
+- The dashboard no longer shows instances that are disabled in the policy (`enabled: false`) or in the snapshot: their quota cards, pool entries and decision-audit rows are hidden, matching `plan`, which already skips them.
+- Test fix: the MCP subprocess tests now kill the server in `finally`, so a failing assertion no longer leaves `node --test test/cli-mcp.test.mjs` hanging.
 
 ## 0.1.0
 

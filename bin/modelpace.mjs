@@ -307,6 +307,7 @@ export async function runCli(
     const toDashboardInput = (loaded) => ({
       decision: loaded.decision,
       snapshot: loaded.snapshot,
+      policy,
       scoresSummary: loaded.scoresSummary,
       speedRanking: loaded.speed?.ranking ?? [],
       options: { now: loaded.now, days, warnings: loaded.speed?.warnings ?? [] },

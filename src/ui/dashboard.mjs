@@ -8,10 +8,23 @@ const CLIENT = fs.readFileSync(new URL('./client.js', import.meta.url), 'utf8');
 const DAY_MS = 86_400_000;
 const day = (ms) => new Date(ms).toISOString().slice(0, 10);
 
-function quotaView(snapshot, nowMs) {
+/** 被策略或快照停用的实例：决策里已跳过，页面也不展示。 */
+function disabledInstanceIds(snapshot, policy) {
+  const ids = new Set();
+  for (const [id, instance] of Object.entries(snapshot?.instances ?? {})) {
+    if (instance.enabled === false || instance.status === 'disabled') ids.add(instance.instanceId ?? id);
+  }
+  for (const [id, instance] of Object.entries(policy?.instances ?? {})) {
+    if (instance.enabled === false) ids.add(id);
+  }
+  return ids;
+}
+
+function quotaView(snapshot, nowMs, disabled) {
   const instances = [];
   const poolMap = new Map();
   for (const instance of Object.values(snapshot?.instances ?? {})) {
+    if (disabled.has(instance.instanceId)) continue;
     const windows = (instance.windows ?? [])
       .map((win) => evaluateWindow(win, { now: nowMs }))
       .filter((win) => win.valid)
@@ -34,7 +47,7 @@ function quotaView(snapshot, nowMs) {
   return { instances, pools: [...poolMap].map(([pool, windows]) => ({ pool, windows })) };
 }
 
-const decisionView = (decision) =>
+const decisionView = (decision, disabled) =>
   decision
     ? {
         action: decision.action,
@@ -45,7 +58,7 @@ const decisionView = (decision) =>
         recommended: decision.recommended
           ? { instanceId: decision.recommended.instanceId, model: decision.recommended.model }
           : null,
-        candidates: decision.candidates.map((c) => ({
+        candidates: decision.candidates.filter((c) => !disabled.has(c.instanceId)).map((c) => ({
           candidateId: c.candidateId,
           instanceId: c.instanceId,
           model: c.model,
@@ -68,13 +81,14 @@ const scoresView = (summary) => ({
 });
 
 /** 把派发决策、用量快照、验收评分与速度排行整理成页面数据（不含原始派发记录）。 */
-export function buildDashboardData({ decision = null, snapshot = null, scoresSummary = null, speedRanking = [], options = {} } = {}) {
+export function buildDashboardData({ decision = null, snapshot = null, policy = null, scoresSummary = null, speedRanking = [], options = {} } = {}) {
+  const disabled = disabledInstanceIds(snapshot, policy);
   const nowMs = options.now ?? Date.now();
   const days = options.days ?? 30;
   return {
     generatedAt: new Date(nowMs).toISOString(),
     live: options.live === true,
-    quota: quotaView(snapshot, nowMs),
+    quota: quotaView(snapshot, nowMs, disabled),
     speed: {
       days,
       sinceDay: day(nowMs - days * DAY_MS),
@@ -83,7 +97,7 @@ export function buildDashboardData({ decision = null, snapshot = null, scoresSum
       warnings: options.warnings ?? [],
     },
     scores: scoresView(scoresSummary),
-    decision: decisionView(decision),
+    decision: decisionView(decision, disabled),
   };
 }
 

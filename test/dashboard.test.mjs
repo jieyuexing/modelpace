@@ -111,6 +111,24 @@ test('buildDashboardData derives Even Pace, pools and the audit without leaking 
   }
 });
 
+test('buildDashboardData hides instances disabled by policy or snapshot, matching the dispatch decision', () => {
+  const policy = multiAccountPolicy();
+  policy.instances['antigravity-pro'].enabled = false;
+  const raw = JSON.parse(fs.readFileSync(MULTI_ACCOUNT_SNAPSHOT, 'utf8'));
+  raw.instances.grok.enabled = false;
+  const snapshot = normalizeSnapshot(raw, { now: NOW });
+  const decision = decideDispatch({ snapshot, policy, request: { task: 'slice' }, now: NOW });
+  assert.ok(decision.candidates.some((c) => c.instanceId === 'antigravity-pro'), 'the decision still audits the disabled candidate');
+
+  const data = buildDashboardData({ decision, snapshot, policy, options: { now: NOW } });
+  const shown = data.quota.instances.map((inst) => inst.id);
+  assert.deepEqual(shown, ['codex', 'claude', 'antigravity']);
+  assert.equal(data.quota.pools.some((pool) => pool.windows.some((w) => w.instance === 'Antigravity Pro')), false);
+  assert.equal(data.decision.candidates.some((c) => c.instanceId === 'antigravity-pro'), false);
+  assert.ok(data.decision.candidates.length > 0);
+  assert.equal(data.decision.recommended.instanceId, decision.recommended.instanceId);
+});
+
 test('the dashboard client renders all tabs, EN/ZH, and draws and persists the Share Image', async () => {
   const { input, cleanup } = await makeInputs({ withLowSample: true });
   try {
