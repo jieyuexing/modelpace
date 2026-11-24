@@ -123,8 +123,9 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
   }
   fs.writeFileSync(liveSnapPath, JSON.stringify(snap), 'utf8');
 
+  let child;
   try {
-    const child = spawn(process.execPath, [MCP_PATH], {
+    child = spawn(process.execPath, [MCP_PATH], {
       env: {
         ...process.env,
         MODELPACE_CONFIG: EXAMPLE_CONFIG,
@@ -236,6 +237,7 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
     child.stdin.end();
     await new Promise((resolve) => child.on('close', resolve));
   } finally {
+    child?.kill();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
@@ -246,11 +248,12 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
 
 test('MCP dispatch_speed ranks local speed over stdio and dispatch_plan can fold it in', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-mcp-speed-'));
+  let child;
   try {
     const now = Date.now();
     writeClaudeFixture(path.join(tmpDir, 'claude'), now);
     writeCodexFixture(path.join(tmpDir, 'codex'), now);
-    const child = spawn(process.execPath, [MCP_PATH], {
+    child = spawn(process.execPath, [MCP_PATH], {
       env: {
         PATH: process.env.PATH,
         MODELPACE_CLAUDE_DIR: path.join(tmpDir, 'claude'),
@@ -298,6 +301,7 @@ test('MCP dispatch_speed ranks local speed over stdio and dispatch_plan can fold
     child.stdin.end();
     await new Promise((resolve) => child.on('close', resolve));
   } finally {
+    child?.kill();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
