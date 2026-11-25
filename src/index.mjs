@@ -14,6 +14,8 @@ export {
 } from './core/pacing.mjs';
 export {
   TASKS,
+  OUTCOMES,
+  ABORT_REASONS,
   DEFAULT_SCORING_CONFIG,
   validateDispatchRecord,
   executorIdentity,

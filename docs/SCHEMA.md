@@ -80,7 +80,7 @@ Candidates are tried in `priority` order (default: array order). Each one target
 
 ## Record (one JSON object per ledger line)
 
-The ledger is JSONL at `--scores FILE`, `MODELPACE_SCORES`, or by default `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). All fifteen fields are required and unknown fields are rejected.
+The ledger is JSONL at `--scores FILE`, `MODELPACE_SCORES`, or by default `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). The fifteen fields below are required; two optional fields (`outcome`, `abortReason`) are described after the table. Unknown fields are rejected.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -100,7 +100,24 @@ The ledger is JSONL at `--scores FILE`, `MODELPACE_SCORES`, or by default `$XDG_
 | `quotaDelta` | number \| null | Percentage points of quota the run consumed. |
 | `note` | string | Free text, may be empty. |
 
-A record counts as a **success** when `accepted`, no `falseReport`, no `scopeViolation`, `stoppedOnDenial` is not `false`, and `reworkRounds <= 1`.
+A record counts as a **success** when `outcome` is `completed` (or absent), `accepted`, no `falseReport`, no `scopeViolation`, `stoppedOnDenial` is not `false`, and `reworkRounds <= 1`.
+
+### Optional `outcome` and `abortReason`
+
+Both fields may be left out (old ledgers stay valid) or set to `null`; an absent `outcome` means `completed`. Use them when a run did not reach a verdict, so interruptions are not mistaken for bad quality.
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| `outcome` | `completed`, `failed`, `interrupted`, `cancelled` | How the run ended. `completed` is judged by the usual success rule. |
+| `abortReason` | `quota`, `stall`, `timeout`, `error`, `user`, `other` | Why a run did not complete. |
+
+Validation:
+
+- `abortReason` needs an explicit `outcome` other than `completed`.
+- `failed`, `interrupted` and `cancelled` need `accepted: false` and `firstPass: false`.
+- For these three outcomes `durationMin` may be `null` even when the provider is not in `durationUnreadableProviders`.
+
+Scoring (`modelpace scores`, MCP `dispatch_scores`): `failed` and `interrupted` count as failures (`f`, so they enter `n = s + f`). `cancelled` is recorded but counted in neither `s` nor `f`, so it never lowers the pass rate; a cell with only cancelled runs has `n = 0` and stays in trial. Every cell also carries `outcomes` (`{ completed, failed, interrupted, cancelled }`), `abortReasons` (non-zero counts per reason, over all non-completed records), `aborted` (`failed + interrupted`) and `cancelled`. The text output appends `, aborted N (reason:count, ...)` and `, cancelled N` to a cell's line only when there are any.
 
 ### `executor` and the score identity
 

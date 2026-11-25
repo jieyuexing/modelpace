@@ -67,6 +67,18 @@ test('CLI init, validate, record, scores, and plan (en & zh, text & json)', asyn
     assert.equal(await runCli(['scores', '--scores', scoresFile, '--config', EXAMPLE_CONFIG, '--lang', 'zh'], { write }), 0);
     assert.match(buf, /试用样本不足/);
 
+    // 中断记录经 CLI 写入，文本明细追加中断标注
+    const abortedFile = path.join(tmpDir, 'aborted-record.json');
+    fs.writeFileSync(abortedFile, JSON.stringify({
+      ...validRecord, taskId: 'cli-2', accepted: false, firstPass: false, durationMin: null,
+      outcome: 'interrupted', abortReason: 'stall',
+    }), 'utf8');
+    buf = '';
+    assert.equal(await runCli(['record', '--json', abortedFile, '--scores', scoresFile, '--config', EXAMPLE_CONFIG], { write }), 0);
+    buf = '';
+    assert.equal(await runCli(['scores', '--scores', scoresFile, '--config', EXAMPLE_CONFIG, '--lang', 'zh'], { write }), 0);
+    assert.match(buf, /，中断\/失败 1 \(stall:1\)/);
+
     buf = '';
     assert.equal(
       await runCli(
@@ -224,6 +236,47 @@ test('MCP stdio server handles initialize, notifications/initialized, ping, tool
     assert.equal(scoresRes.result.structuredContent.totalRecords, 1);
     assert.equal(scoresRes.result.structuredContent.cells.length, 1);
     assert.equal('records' in scoresRes.result.structuredContent, false, 'summary must not carry the raw ledger records');
+
+    // outcome / abortReason 经 MCP 透传：failed 计入失败，cancelled 不进 n，坏组合被拒
+    const abortRecord = {
+      date: '2026-11-23',
+      taskId: 'mcp-2',
+      title: 'MCP aborted slice',
+      task: 'slice',
+      executor: { provider: 'codex', model: 'gpt-5.3-codex', effort: 'high', tier: 'personal', site: 'local' },
+      scorer: 'orchestrator',
+      accepted: false,
+      firstPass: false,
+      reworkRounds: 0,
+      scopeViolation: false,
+      falseReport: false,
+      stoppedOnDenial: null,
+      durationMin: null,
+      quotaDelta: null,
+      note: 'Hit the quota cap',
+    };
+    const callRecord = (id, record) => rpc({
+      jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'dispatch_record', arguments: { record } },
+    });
+    assert.equal((await callRecord(20, { ...abortRecord, outcome: 'failed', abortReason: 'quota' })).result.isError, false);
+    assert.equal((await callRecord(21, { ...abortRecord, taskId: 'mcp-3', outcome: 'cancelled', abortReason: 'user' })).result.isError, false);
+    const badOutcome = await callRecord(22, { ...abortRecord, outcome: 'failed', accepted: true });
+    assert.equal(badOutcome.result.isError, true);
+    assert.match(badOutcome.result.content[0].text, /requires accepted and firstPass to be false/);
+    const badReason = await callRecord(23, { ...abortRecord, outcome: 'paused' });
+    assert.equal(badReason.result.isError, true);
+    assert.match(badReason.result.content[0].text, /outcome must be one of/);
+
+    const abortScores = await rpc({ jsonrpc: '2.0', id: 24, method: 'tools/call', params: { name: 'dispatch_scores', arguments: {} } });
+    const [abortCell] = abortScores.result.structuredContent.cells;
+    assert.equal(abortScores.result.structuredContent.totalRecords, 3);
+    assert.equal(abortCell.s, 1);
+    assert.equal(abortCell.f, 1);
+    assert.equal(abortCell.n, 2);
+    assert.deepEqual(abortCell.outcomes, { completed: 1, failed: 1, interrupted: 0, cancelled: 1 });
+    assert.deepEqual(abortCell.abortReasons, { quota: 1, user: 1 });
+    assert.equal(abortCell.aborted, 1);
+    assert.equal(abortCell.cancelled, 1);
 
     // Bad tool name returns isError: true
     const errRes = await rpc({

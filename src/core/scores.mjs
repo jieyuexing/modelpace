@@ -3,12 +3,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const TASKS = Object.freeze(['general', 'research', 'review', 'slice', 'long']);
+export const OUTCOMES = Object.freeze(['completed', 'failed', 'interrupted', 'cancelled']);
+export const ABORT_REASONS = Object.freeze(['quota', 'stall', 'timeout', 'error', 'user', 'other']);
 
 const FIELDS = [
   'date', 'taskId', 'title', 'task', 'executor', 'scorer',
   'accepted', 'firstPass', 'reworkRounds', 'scopeViolation', 'falseReport',
   'stoppedOnDenial', 'durationMin', 'quotaDelta', 'note',
 ];
+const OPTIONAL_FIELDS = ['outcome', 'abortReason'];
 const IDENTITY = ['provider', 'model', 'effort', 'tier', 'site'];
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -35,13 +38,13 @@ export const DEFAULT_SCORING_CONFIG = Object.freeze({
   },
 });
 
-function exactFields(value, keys, label) {
+function exactFields(value, keys, label, optional = []) {
   if (!isObject(value)) throw new Error(`Invalid dispatch record: ${label} must be an object`);
   for (const key of keys) {
     if (!Object.hasOwn(value, key)) throw new Error(`Invalid dispatch record: missing ${label}.${key}`);
   }
   for (const key of Object.keys(value)) {
-    if (!keys.includes(key)) throw new Error(`Invalid dispatch record: unknown field ${label}.${key}`);
+    if (!keys.includes(key) && !optional.includes(key)) throw new Error(`Invalid dispatch record: unknown field ${label}.${key}`);
   }
 }
 
@@ -56,8 +59,10 @@ function matchesRejectRule(record, rule) {
   return true;
 }
 
+const isUnfinished = (record) => (record.outcome ?? 'completed') !== 'completed';
+
 export function validateDispatchRecord(record, config = {}) {
-  exactFields(record, FIELDS, 'record');
+  exactFields(record, FIELDS, 'record', OPTIONAL_FIELDS);
   if (
     typeof record.date !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}$/.test(record.date) ||
@@ -108,6 +113,20 @@ export function validateDispatchRecord(record, config = {}) {
   if (typeof record.note !== 'string') {
     throw new Error('Invalid dispatch record: note must be string');
   }
+  if (record.outcome != null && !OUTCOMES.includes(record.outcome)) {
+    throw new Error(`Invalid dispatch record: outcome must be one of ${OUTCOMES.join(', ')} or null`);
+  }
+  if (record.abortReason != null) {
+    if (!ABORT_REASONS.includes(record.abortReason)) {
+      throw new Error(`Invalid dispatch record: abortReason must be one of ${ABORT_REASONS.join(', ')} or null`);
+    }
+    if (record.outcome == null || record.outcome === 'completed') {
+      throw new Error('Invalid dispatch record: abortReason requires outcome failed, interrupted or cancelled');
+    }
+  }
+  if (isUnfinished(record) && (record.accepted || record.firstPass)) {
+    throw new Error(`Invalid dispatch record: outcome ${record.outcome} requires accepted and firstPass to be false`);
+  }
   return record;
 }
 
@@ -127,6 +146,7 @@ export function scoreIdentity(executor, aliases = DEFAULT_SCORING_CONFIG.aliases
 }
 
 export const dispatchSucceeded = (record) =>
+  (record.outcome ?? 'completed') === 'completed' &&
   record.accepted &&
   !record.falseReport &&
   !record.scopeViolation &&
@@ -157,7 +177,7 @@ export function appendDispatchRecord(record, options = {}) {
   const unreadable = Array.isArray(config.durationUnreadableProviders)
     ? config.durationUnreadableProviders
     : [];
-  if (record.durationMin === null && !unreadable.includes(record.executor.provider)) {
+  if (record.durationMin === null && !isUnfinished(record) && !unreadable.includes(record.executor.provider)) {
     throw new Error(
       `Invalid dispatch record: durationMin cannot be null unless provider (${record.executor.provider}) is listed in durationUnreadableProviders`,
     );
@@ -327,6 +347,8 @@ export function summarizeDispatchScores(records, config = {}) {
         task: record.task,
         s: 0,
         f: 0,
+        outcomes: { completed: 0, failed: 0, interrupted: 0, cancelled: 0 },
+        abortReasons: {},
         firstPass: 0,
         durations: [],
         quotaDeltas: [],
@@ -334,9 +356,14 @@ export function summarizeDispatchScores(records, config = {}) {
       });
     }
     const cell = cells.get(key);
+    const outcome = record.outcome ?? 'completed';
+    cell.outcomes[outcome]++;
+    if (record.abortReason != null) {
+      cell.abortReasons[record.abortReason] = (cell.abortReasons[record.abortReason] ?? 0) + 1;
+    }
     const succeeded = dispatchSucceeded(record);
     if (succeeded) cell.s++;
-    else cell.f++;
+    else if (outcome !== 'cancelled') cell.f++;
     if (record.firstPass) cell.firstPass++;
     if (succeeded && record.durationMin !== null) cell.durations.push(record.durationMin);
     if (record.quotaDelta !== null) cell.quotaDeltas.push(record.quotaDelta);
@@ -368,6 +395,8 @@ export function summarizeDispatchScores(records, config = {}) {
 
         return {
           ...cell,
+          aborted: cell.outcomes.failed + cell.outcomes.interrupted,
+          cancelled: cell.outcomes.cancelled,
           n,
           passRate: enough ? (cell.s + 1) / (n + 2) : null,
           rawPassRate: n > 0 ? cell.s / n : null,
@@ -476,13 +505,25 @@ export function formatDispatchScores(summary, { lang = 'en' } = {}) {
     lines.push(`${group.task}: ${qStr || (zh ? '暂无达标执行者' : 'none qualified')}${bStr}${tStr}`);
   }
 
+  // 中断/取消标注：无中断与取消时返回空串，明细行与旧版逐字节一致；原因计数覆盖全部非 completed 记录。
+  const fmtAborts = (cell) => {
+    const reasons = Object.entries(cell.abortReasons ?? {}).map(([reason, count]) => `${reason}:${count}`).join(', ');
+    const parts = [];
+    if (cell.aborted > 0) parts.push(`${zh ? '中断/失败' : 'aborted'} ${cell.aborted}`);
+    if (cell.cancelled > 0) parts.push(`${zh ? '取消' : 'cancelled'} ${cell.cancelled}`);
+    const note = parts.join(zh ? '，' : ', ');
+    if (!note) return '';
+    const withReasons = cell.aborted > 0 && reasons ? `${note} (${reasons})` : note;
+    return `${zh ? '，' : ', '}${withReasons}`;
+  };
+
   lines.push('', zh ? '明细单元' : 'Score Cells');
   for (const cell of summary.cells) {
     if (cell.n < summary.minSamples) {
-      lines.push(`- ${cell.identity} × ${cell.task}: ${zh ? `试用样本不足 n=${cell.n}` : `trial n=${cell.n} (<${summary.minSamples})`}`);
+      lines.push(`- ${cell.identity} × ${cell.task}: ${zh ? `试用样本不足 n=${cell.n}` : `trial n=${cell.n} (<${summary.minSamples})`}${fmtAborts(cell)}`);
     } else {
       lines.push(
-        `- ${cell.identity} × ${cell.task}: pass ${pct(cell.passRate)} (90% CI ${cell.interval90.map(pct).join('–')}), n=${cell.n} (${cell.s}✓/${cell.f}✗), firstPass ${pct(cell.firstPassRate)}, ${fmtDuration(cell)}, ${fmtCost(cell)}`,
+        `- ${cell.identity} × ${cell.task}: pass ${pct(cell.passRate)} (90% CI ${cell.interval90.map(pct).join('–')}), n=${cell.n} (${cell.s}✓/${cell.f}✗), firstPass ${pct(cell.firstPassRate)}, ${fmtDuration(cell)}, ${fmtCost(cell)}${fmtAborts(cell)}`,
       );
     }
   }

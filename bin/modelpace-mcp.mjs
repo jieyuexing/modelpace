@@ -68,14 +68,14 @@ export const MCP_TOOLS = [
     name: 'dispatch_record',
     description:
       'Call this AFTER you have independently verified a delegated task (tests, diff review or explicit user acceptance), never on the sub-agent\'s own report. It appends one acceptance record to the ledger so later dispatch_plan calls can prefer models that really pass; a candidate becomes "qualified" after 5 successful records for the same executor and task. ' +
-      'Build `record.executor` from `recommended.executor` of the plan you followed plus a `site` label (for example "local"). All fifteen record fields are required; an invalid record is rejected with a message naming the missing or wrong field. Returns { file, identity, task }.',
+      'Build `record.executor` from `recommended.executor` of the plan you followed plus a `site` label (for example "local"). All fifteen record fields are required; two optional fields mark runs that did not finish: `outcome` (completed|failed|interrupted|cancelled, default completed) and `abortReason` (quota|stall|timeout|error|user|other). failed/interrupted count as failures (accepted and firstPass must be false, durationMin may be null); cancelled is recorded but excluded from the pass-rate denominator. An invalid record is rejected with a message naming the missing or wrong field. Returns { file, identity, task }.',
     inputSchema: {
       type: 'object',
       required: ['record'],
       properties: {
         record: {
           type: 'object',
-          description: 'One acceptance record with all fifteen fields: date (YYYY-MM-DD), taskId, title, task (general|research|review|slice|long), executor { provider, model, effort, tier, site }, scorer, accepted, firstPass, reworkRounds, scopeViolation, falseReport, stoppedOnDenial (boolean or null), durationMin (number or null), quotaDelta (number or null), note (string). Field meanings: docs/SCHEMA.md.',
+          description: 'One acceptance record with all fifteen fields: date (YYYY-MM-DD), taskId, title, task (general|research|review|slice|long), executor { provider, model, effort, tier, site }, scorer, accepted, firstPass, reworkRounds, scopeViolation, falseReport, stoppedOnDenial (boolean or null), durationMin (number or null), quotaDelta (number or null), note (string); optional outcome and abortReason (strings or null, abortReason only with a non-completed outcome). Field meanings: docs/SCHEMA.md.',
         },
         scoresPath: SCORES_PATH,
         configPath: CONFIG_PATH,
@@ -86,7 +86,7 @@ export const MCP_TOOLS = [
   {
     name: 'dispatch_scores',
     description:
-      'Read-only summary of the acceptance ledger: for every executor identity and task the pass rate with its 90% credible interval, sample count, median duration of successes and nominal cost, plus the qualified / trial ranking per task. Use it to see why dispatch_plan prefers a model or to review quality over time. An empty or missing ledger returns an empty summary, not an error.',
+      'Read-only summary of the acceptance ledger: for every executor identity and task the pass rate with its 90% credible interval, sample count, median duration of successes and nominal cost, plus per-cell outcomes, abortReasons, aborted (failed + interrupted) and cancelled counts (cancelled runs are not in n) and the qualified / trial ranking per task. Use it to see why dispatch_plan prefers a model or to review quality over time. An empty or missing ledger returns an empty summary, not an error.',
     inputSchema: {
       type: 'object',
       properties: {

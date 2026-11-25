@@ -87,7 +87,7 @@ node ./bin/modelpace.mjs scores --scores demo-scores.jsonl
 
 示例记录是假的，`demo-scores.jsonl` 只是演示用账本，用完请删除；不带 `--scores` 时记录会写进你真正的账本（见下）。
 
-账本默认在 `$XDG_DATA_HOME/modelpace/scores.jsonl`（`~/.local/share/modelpace/scores.jsonl`；Windows 为 `%LOCALAPPDATA%\modelpace\scores.jsonl`），可用 `--scores FILE` 或 `MODELPACE_SCORES` 改。`record` 新建缺失目录时权限为 0700、账本文件 0600，不改已存在目录的权限。Agent 可参照 [skills/modelpace/SKILL.md](./skills/modelpace/SKILL.md)。同一执行身份、同一任务有 5 条成功记录后，候选变为 `qualified`；记录字段与身份规则见 [docs/SCHEMA.md](./docs/SCHEMA.md)。
+账本默认在 `$XDG_DATA_HOME/modelpace/scores.jsonl`（`~/.local/share/modelpace/scores.jsonl`；Windows 为 `%LOCALAPPDATA%\modelpace\scores.jsonl`），可用 `--scores FILE` 或 `MODELPACE_SCORES` 改。`record` 新建缺失目录时权限为 0700、账本文件 0600，不改已存在目录的权限。Agent 可参照 [skills/modelpace/SKILL.md](./skills/modelpace/SKILL.md)。没跑完的任务可用可选字段 `outcome`（`completed`、`failed`、`interrupted`、`cancelled`）与 `abortReason`（`quota`、`stall`、`timeout`、`error`、`user`、`other`）记录；`cancelled` 会显示但不计入通过率分母。同一执行身份、同一任务有 5 条成功记录后，候选变为 `qualified`；记录字段与身份规则见 [docs/SCHEMA.md](./docs/SCHEMA.md)。
 
 ### 连接 T3 Code
 
