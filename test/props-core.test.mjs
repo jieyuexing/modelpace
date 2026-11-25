@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   TASKS,
   betaQuantile,
+  cardCoversWindow,
   decideDispatch,
   evaluateInstanceCandidate,
   evaluateWindow,
@@ -201,6 +202,28 @@ test('property: using less of a window never adds blockers or loses the availabl
     const beforeIds = new Set(before.blockers.map((b) => b.windowId));
     for (const b of after.blockers) assert.ok(beforeIds.has(b.windowId), `used ${used} -> ${lowered} added blocker ${b.windowId}`);
     if (before.quotaState === 'available') assert.equal(after.quotaState, 'available');
+  });
+});
+
+// 重置卡：只有兑换后能解除全部拦截时，才该走 credit_low / credit_redeem（AGENTS.md「redeem: Ask the user to redeem
+// the reset credit ..., then plan again」；pacing.mjs:492-517）。卡只覆盖部分拦截时兑换了也还是被拦。
+test('property: a reset credit is only suggested when it covers every blocker', () => {
+  forAll('credit covers', { runs: 600 }, (g) => {
+    const instance = genInstance(g);
+    instance.enabled = true;
+    instance.status = 'ready';
+    instance.checkedAt = iso(NOW - 60000);
+    instance.resetCredits = { known: true, cards: g.array(1, 2, (i) => genCard(g, i)) };
+    return { instance, task: g.pick(TASKS) };
+  }, ({ instance, task }) => {
+    const policy = normalizePolicy({ slots: { worker: { candidates: [] } } });
+    const result = evaluateInstanceCandidate({ instance, request: { task }, pacingConfig: policy.pacing, now: NOW });
+    if (result.quotaState !== 'credit_low' && result.quotaState !== 'credit_redeem') return;
+    for (const blocker of result.blockers) {
+      const win = result.applicableWindows.find((w) => (w.id ?? w.label) === blocker.windowId);
+      assert.ok(win, `blocker ${blocker.windowId} is not a quota window`);
+      assert.ok(result.coveringCredits.some((card) => cardCoversWindow(card, win)), `no credit covers ${blocker.windowId}`);
+    }
   });
 });
 

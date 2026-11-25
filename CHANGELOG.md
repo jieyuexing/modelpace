@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `plan` ranks qualified candidates by duration bands anchored at the fastest median, so the recommendation no longer depends on the order candidates are listed in the config. Before, near-tie durations were compared pair by pair (10 vs 11 vs 12 minutes: each neighbour a tie, the ends not), which together with the speed tie-breaker formed a cycle.
+- `plan` only suggests redeeming a reset credit (`redeem`, or running below the floor as `credit_low`) when the usable credits cover every blocking window. Before, a credit that covered one of two exhausted windows was suggested, and redeeming it left the candidate blocked.
 - MCP `dispatch_scores` no longer returns the raw ledger records next to the summary. With a few hundred records the result grew past what an MCP client accepts in one tool result; `modelpace scores --format json` still prints them.
 - The dashboard no longer shows instances that are disabled in the policy (`enabled: false`) or in the snapshot: their quota cards, pool entries and decision-audit rows are hidden, matching `plan`, which already skips them.
 - Test fix: the MCP subprocess tests now kill the server in `finally`, so a failing assertion no longer leaves `node --test test/cli-mcp.test.mjs` hanging.

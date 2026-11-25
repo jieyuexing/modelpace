@@ -489,13 +489,14 @@ export function evaluateInstanceCandidate({
     ? new Date(Math.max(...blockers.map((b) => Date.parse(b.resetsAt)))).toISOString()
     : null;
 
-  const coveringCredits = blockers.length > 0
-    ? usableCredits.filter((card) =>
-        blockers.some((b) => {
-          const win = applicableWindows.find((w) => (w.id ?? w.label) === b.windowId);
-          return win && cardCoversWindow(card, win);
-        }),
-      )
+  // 只有兑换后能解除全部拦截时才算有卡兜底：卡只覆盖部分窗口（或拦截来自余额、预算）时兑换了仍被拦，白耗一张卡。
+  const blockerWindow = (b) => applicableWindows.find((w) => (w.id ?? w.label) === b.windowId);
+  const everyBlockerCovered = blockers.length > 0 && blockers.every((b) => {
+    const win = blockerWindow(b);
+    return win && usableCredits.some((card) => cardCoversWindow(card, win));
+  });
+  const coveringCredits = everyBlockerCovered
+    ? usableCredits.filter((card) => blockers.some((b) => cardCoversWindow(card, blockerWindow(b))))
     : [];
 
   let quotaState = 'available';

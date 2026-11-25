@@ -38,3 +38,33 @@ test('qualified ranking with near-tie durations does not depend on config order'
   // 10 与 11 同属最快一档（相对最快者差 10%），档内按 speed 取 c1；12 比最快者慢 20%，自成下一档。
   assert.deepEqual(rankings[0], ['c1', 'c0', 'c2']);
 });
+
+test('plan does not suggest redeeming a reset credit that cannot clear every blocker', () => {
+  // 两个周窗都用尽，卡只覆盖 w0：兑换后 w1 仍然用尽，建议兑换只会白白耗掉这张卡。
+  const resetsAt = (hours) => new Date(NOW + hours * 3600000).toISOString();
+  const instance = {
+    driver: 'codex',
+    enabled: true,
+    status: 'ready',
+    checkedAt: fresh,
+    windows: [
+      { id: 'w0', kind: 'weekly', usedPercent: 100, resetsAt: resetsAt(127), windowDurationMins: 10080 },
+      { id: 'w1', kind: 'weekly', usedPercent: 100, resetsAt: resetsAt(108), windowDurationMins: 10080 },
+    ],
+    resetCredits: {
+      known: true,
+      cards: [{ creditId: 'card0', resetType: 'codexRateLimits', status: 'available', resetsLeft: 2, coversWindowIds: ['w0'] }],
+    },
+  };
+  const policy = { slots: { worker: { candidates: [{ id: 'c0', instanceId: 'codex', model: 'm' }] } } };
+  const partial = decideDispatch({ snapshot: { schemaVersion: 2, instances: { codex: instance } }, policy, request: { task: 'slice' }, now: NOW });
+  assert.equal(partial.action, 'pause');
+  assert.equal(partial.redeemCandidate, null);
+
+  // 卡覆盖全部拦截时仍然建议兑换。
+  const full = structuredClone(instance);
+  full.resetCredits.cards[0].coversWindowIds = ['w0', 'w1'];
+  const covered = decideDispatch({ snapshot: { schemaVersion: 2, instances: { codex: full } }, policy, request: { task: 'slice' }, now: NOW });
+  assert.equal(covered.action, 'redeem');
+  assert.equal(covered.redeemCandidate.creditId, 'card0');
+});
