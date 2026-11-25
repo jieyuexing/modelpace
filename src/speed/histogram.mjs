@@ -100,6 +100,8 @@ export function rankSpeedRows(rows, scores = []) {
         all: new Map(),
         short: new Map(),
         outputTokens: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
         firstMs: row.firstMs,
         lastMs: row.lastMs,
       };
@@ -109,6 +111,10 @@ export function rankSpeedRows(rows, scores = []) {
     addPairsToBins(group.all, row.all);
     addPairsToBins(group.short, row.short);
     group.outputTokens += row.outputTokens;
+    const rowInput = Number.isFinite(row.inputTokens) && row.inputTokens > 0 ? row.inputTokens : 0;
+    const rowCached = Number.isFinite(row.cachedInputTokens) && row.cachedInputTokens > 0 ? Math.min(rowInput, row.cachedInputTokens) : 0;
+    group.inputTokens += rowInput;
+    group.cachedInputTokens += rowCached;
     group.firstMs = Math.min(group.firstMs, row.firstMs);
     group.lastMs = Math.max(group.lastMs, row.lastMs);
   }
@@ -116,6 +122,9 @@ export function rankSpeedRows(rows, scores = []) {
     .map((group) => {
       const longRequests = binsCount(group.long);
       const score = scoreByModel.get(scoreKey(group.provider, group.model));
+      const cacheHitRate = group.inputTokens > 0
+        ? Number(Math.min(1, Math.max(0, group.cachedInputTokens / group.inputTokens)).toFixed(4))
+        : null;
       return {
         provider: group.provider,
         model: group.model,
@@ -124,6 +133,9 @@ export function rankSpeedRows(rows, scores = []) {
         longRequests,
         shortRequests: binsCount(group.short),
         outputTokens: group.outputTokens,
+        inputTokens: group.inputTokens,
+        cachedInputTokens: group.cachedInputTokens,
+        cacheHitRate,
         firstMs: group.firstMs,
         lastMs: group.lastMs,
         longRate: binsMedian(group.long),
@@ -163,6 +175,7 @@ export function toSpeedMetricsMap(ranking) {
       allRate: row.allRate === null ? null : Number(row.allRate.toFixed(2)),
       shortSeconds: row.shortSeconds === null ? null : Number(row.shortSeconds.toFixed(2)),
       longRequests: row.longRequests,
+      cacheHitRate: row.cacheHitRate ?? null,
       provider: row.provider,
     };
   }

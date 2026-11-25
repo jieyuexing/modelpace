@@ -9,6 +9,7 @@ import {
   binsToPairs,
   collectSpeed,
   decideDispatch,
+  formatSpeedText,
   normalizeSnapshot,
   rankSpeedRows,
   scanSpeed,
@@ -19,6 +20,7 @@ import {
   summarizeDispatchScores,
   toSpeedMetricsMap,
 } from '../src/index.mjs';
+import { runCli } from '../bin/modelpace.mjs';
 import { MULTI_ACCOUNT_SNAPSHOT, multiAccountPolicy } from './helpers/multi-account.mjs';
 import {
   FIXTURE_NOW,
@@ -278,6 +280,155 @@ test('scanSpeed reads SQLite speed_events databases next to JSONL events and ign
     assert.equal(argon.requests, 8);
     assert.equal(argon.longRequests, 8);
     assert.ok(Math.abs(argon.longRate - 50) / 50 <= 0.01);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('cacheHitRate aggregates Claude, Codex, and generic events, ignores missing cache fields, and invalidates v1 cache', async () => {
+  const env = makeHome();
+  try {
+    const t0 = FIXTURE_NOW - 1800_000;
+    const iso = (ms) => new Date(ms).toISOString();
+
+    // 1. Claude Code: same message.id takes max across streaming chunks; total = input + cache_read + cache_creation
+    const claudeFile = path.join(env.options.claudeDir, 'proj', 'cache.jsonl');
+    fs.mkdirSync(path.dirname(claudeFile), { recursive: true });
+    fs.writeFileSync(
+      claudeFile,
+      [
+        { type: 'user', uuid: 'u1', timestamp: iso(t0), message: { role: 'user', content: 'hi' } },
+        {
+          type: 'assistant',
+          timestamp: iso(t0 + 1000),
+          message: { id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 10, cache_read_input_tokens: 400, cache_creation_input_tokens: 100, output_tokens: 20 } },
+        },
+        {
+          type: 'assistant',
+          timestamp: iso(t0 + 10_000),
+          message: { id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 50, cache_read_input_tokens: 850, cache_creation_input_tokens: 100, output_tokens: 1200 } },
+        },
+        { type: 'user', uuid: 'u2', timestamp: iso(t0 + 20_000), message: { role: 'user', content: 'no cache fields' } },
+        {
+          type: 'assistant',
+          timestamp: iso(t0 + 30_000),
+          message: { id: 'm2', model: 'claude-sonnet-5-5', usage: { input_tokens: 500, output_tokens: 1000 } },
+        },
+      ].map((x) => JSON.stringify(x)).join('\n') + '\n',
+    );
+    fs.utimesSync(claudeFile, new Date(FIXTURE_NOW), new Date(FIXTURE_NOW));
+
+    // 2. Codex: token_count + token_usage_record (with both cached_input_tokens and input_tokens_details.cached_tokens) and clamping
+    const codexFile = path.join(env.options.codexDir, 'rollout-cache.jsonl');
+    fs.mkdirSync(path.dirname(codexFile), { recursive: true });
+    fs.writeFileSync(
+      codexFile,
+      [
+        { timestamp: iso(t0), type: 'turn_context', payload: { model: 'gpt-5.3-codex' } },
+        { timestamp: iso(t0 + 1000), type: 'event_msg', payload: { type: 'task_started' } },
+        { timestamp: iso(t0 + 11_000), type: 'response_item', payload: { type: 'message', role: 'assistant' } },
+        {
+          timestamp: iso(t0 + 11_100),
+          type: 'token_usage_record',
+          payload: { response_id: 'r1', usage: { input_tokens: 1000, cached_input_tokens: 950, output_tokens: 1200 } },
+        },
+        { timestamp: iso(t0 + 20_000), type: 'event_msg', payload: { type: 'task_started' } },
+        { timestamp: iso(t0 + 30_000), type: 'response_item', payload: { type: 'message', role: 'assistant' } },
+        {
+          timestamp: iso(t0 + 30_100),
+          type: 'event_msg',
+          payload: {
+            type: 'token_count',
+            info: {
+              total_token_usage: { total_tokens: 3000 },
+              last_token_usage: { input_tokens: 1000, input_tokens_details: { cached_tokens: 1200 }, output_tokens: 1200 },
+            },
+          },
+        },
+      ].map((x) => JSON.stringify(x)).join('\n') + '\n',
+    );
+    fs.utimesSync(codexFile, new Date(FIXTURE_NOW), new Date(FIXTURE_NOW));
+
+    // 3. Generic events (Antigravity / Gemini): camelCase and snake_case, plus missing cache fields on another model
+    const agFile = path.join(env.options.antigravityPaths[0], 'events.jsonl');
+    fs.mkdirSync(path.dirname(agFile), { recursive: true });
+    fs.writeFileSync(
+      agFile,
+      [
+        { model: 'gemini-4-hydrogen-high', outputTokens: 1500, startedAt: iso(t0), endedAt: iso(t0 + 10_000), inputTokens: 1000, cachedInputTokens: 760 },
+        { model: 'gemini-4-hydrogen', output_tokens: 1500, started_at: iso(t0 + 15_000), ended_at: iso(t0 + 25_000), input_tokens: 1000, cached_input_tokens: 760 },
+        { model: 'gemini-4-argon', outputTokens: 1500, startedAt: iso(t0 + 30_000), endedAt: iso(t0 + 40_000) },
+      ].map((x) => JSON.stringify(x)).join('\n') + '\n',
+    );
+    fs.utimesSync(agFile, new Date(FIXTURE_NOW), new Date(FIXTURE_NOW));
+
+    // Seed a legacy v1 cache with stale/different rows and verify automatic rescan
+    fs.mkdirSync(path.dirname(env.options.cacheFile), { recursive: true });
+    const stat = fs.statSync(claudeFile);
+    fs.writeFileSync(
+      env.options.cacheFile,
+      JSON.stringify({
+        version: 1,
+        files: { [claudeFile]: { signature: `${stat.mtimeMs}|${stat.size}`, rows: [] } },
+      }),
+    );
+
+    const scan = await scanSpeed({ ...env.options, now: FIXTURE_NOW });
+    assert.equal(scan.sources.claude.scanned, 1);
+    assert.equal(scan.sources.claude.cached, 0);
+    const cacheWritten = JSON.parse(fs.readFileSync(env.options.cacheFile, 'utf8'));
+    assert.equal(cacheWritten.version, 2);
+
+    const ranking = rankSpeedRows(scan.rows);
+    const byModel = Object.fromEntries(ranking.map((r) => [r.model, r]));
+
+    assert.equal(byModel['claude-opus-5-5'].inputTokens, 1000);
+    assert.equal(byModel['claude-opus-5-5'].cachedInputTokens, 850);
+    assert.equal(byModel['claude-opus-5-5'].cacheHitRate, 0.85);
+
+    assert.equal(byModel['claude-sonnet-5-5'].inputTokens, 0);
+    assert.equal(byModel['claude-sonnet-5-5'].cacheHitRate, null);
+
+    // Codex: r1 (950/1000) + token_count (clamped 1000/1000) => 1950/2000 = 0.975
+    assert.equal(byModel['gpt-5.3-codex'].inputTokens, 2000);
+    assert.equal(byModel['gpt-5.3-codex'].cachedInputTokens, 1950);
+    assert.equal(byModel['gpt-5.3-codex'].cacheHitRate, 0.975);
+
+    assert.equal(byModel['gemini-4-hydrogen'].inputTokens, 2000);
+    assert.equal(byModel['gemini-4-hydrogen'].cachedInputTokens, 1520);
+    assert.equal(byModel['gemini-4-hydrogen'].cacheHitRate, 0.76);
+
+    assert.equal(byModel['gemini-4-argon'].cacheHitRate, null);
+
+    // CLI text output displays cache= column when any row has cacheHitRate, and '—' for missing ones
+    const cliEnv = {
+      MODELPACE_CLAUDE_DIR: env.options.claudeDir,
+      MODELPACE_CODEX_DIR: env.options.codexDir,
+      MODELPACE_OPENCODE_DB: env.options.opencodeDb,
+      MODELPACE_ANTIGRAVITY_PATHS: env.options.antigravityPaths[0],
+      MODELPACE_SPEED_CACHE: env.options.cacheFile,
+      PATH: '',
+    };
+    let textOut = '';
+    assert.equal(await runCli(['speed', '--days', '30'], { env: cliEnv, write: (s) => { textOut += s; }, now: () => FIXTURE_NOW }), 0);
+    assert.match(textOut, /claude-opus-5-5.*cache=85\.0%/);
+    assert.match(textOut, /gpt-5\.3-codex.*cache=97\.5%/);
+    assert.match(textOut, /gemini-4-hydrogen.*cache=76\.0%/);
+    assert.match(textOut, /claude-sonnet-5-5.*cache=—/);
+
+    let jsonOut = '';
+    assert.equal(await runCli(['speed', '--days', '30', '--format', 'json'], { env: cliEnv, write: (s) => { jsonOut += s; }, now: () => FIXTURE_NOW }), 0);
+    const parsed = JSON.parse(jsonOut);
+    assert.equal(parsed.ranking.find((r) => r.model === 'gpt-5.3-codex').cacheHitRate, 0.975);
+    assert.equal(parsed.ranking.find((r) => r.model === 'gemini-4-argon').cacheHitRate, null);
+
+    // When no row has cacheHitRate, text output omits the cache column for backward compatibility
+    const noCacheText = formatSpeedText({
+      days: 30,
+      ranking: [{ ...byModel['gemini-4-argon'], cacheHitRate: null }],
+      warnings: [],
+    }).join('\n');
+    assert.doesNotMatch(noCacheText, /cache=/);
   } finally {
     env.cleanup();
   }

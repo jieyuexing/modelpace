@@ -133,6 +133,8 @@ node ./bin/modelpace.mjs serve --t3-auto --scores dispatch-scores.jsonl --port 8
 
 口径（单次请求）：输出 token ÷ 墙钟耗时，仅统计输出 ≥ 100 token 且 0.5 秒 < 耗时 < 900 秒的请求。主指标是输出 ≥ 1000 token 请求的 tok/s 中位数；长请求少于 20 次的行标「样本少」，不参与 `plan` 决胜。「派发通过」列与验收评分共用同一成功公式。
 
+单请求 tok/s 与端到端 `delegate_task` 墙钟耗时不同：高频短切片委派的端到端中位耗时通常在 2–6 分钟，而重型长程交付跨越多次工具调用与核验可达 15–20 分钟以上；因此 `plan` 先按账本任务耗时中位数排序，只在耗时相近时用 Speed 决胜。当会话日志带有输入与缓存字段时（Claude Code、Codex 或通用事件），`speed` 还会额外聚合可选的 `cacheHitRate`（`cachedInputTokens / inputTokens`，范围 `0..1`，文本表在有样本时展示 `cache=` 列），仅作额度消耗效率观测，不改 `plan` 排序权重。
+
 数据源（全部只读、路径均可覆盖）：`MODELPACE_CLAUDE_DIR`（默认 `~/.claude/projects`）、`MODELPACE_CODEX_DIR`（`~/.codex/sessions`）、`MODELPACE_OPENCODE_DB`（`~/.local/share/opencode/opencode.db`，需要 `node:sqlite`）、`MODELPACE_ANTIGRAVITY_PATHS`（默认 `~/.gemini/antigravity`，JSONL 文件或含 `speed_events` 表的 SQLite，每请求一条 `{ model, outputTokens, startedAt, endedAt }`）。`MODELPACE_SPEED_CACHE` 指定增量缓存位置（默认 `~/.cache/modelpace/speed-cache.json`）。
 
 `--t3-auto` / `MODELPACE_AUTO=1` 依次找 `MODELPACE_T3_BIN`、`PATH` 中的 `t3`、macOS 上 bundle id 为 `com.t3tools.t3code` 的应用；服务 origin 取自 `T3CODE_HOME`（默认 `~/.t3`）下运行中服务的 `userdata/server-runtime.json`，或 `MODELPACE_ORIGIN`。

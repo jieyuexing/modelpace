@@ -168,3 +168,19 @@ A record counts as a **success** when `accepted`, no `falseReport`, no `scopeVio
 | `windowDurationMins` | Window length; with `resetsAt` it gives the Even Pace line. |
 | `pool` | Model-family pool (`gemini`, `carbon`, `argon`, ...) or `null`. |
 | `modelIds`, `providerIds` | Optional restriction of the window to models/providers, or `null`. |
+
+## Speed output (`modelpace speed --format json`)
+
+`modelpace speed --format json` (and MCP `dispatch_speed`) returns `{ days, ranking, metrics, sources, warnings }`. Each entry in `ranking[]` aggregates one `provider × model` pair (plus optional `tier`) over the requested day window:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `provider`, `model`, `tier` | string \| undefined | Channel (`claude`, `codex`, `opencode`, `antigravity`), normalized model id, and optional tier. |
+| `requests`, `longRequests`, `shortRequests` | integer | Counted requests (`>= 100` output tokens, `0.5s < duration < 900s`), long (`>= 1000` output tokens), and short (`<= 300` output tokens). |
+| `outputTokens` | integer | Sum of counted output tokens. |
+| `inputTokens`, `cachedInputTokens` | integer | Sum of total input tokens and cached input tokens across requests whose source logs carry input and cache usage fields (`0` when absent). |
+| `cacheHitRate` | number \| null | Optional prompt-cache hit ratio (`0..1`, `cachedInputTokens / inputTokens`) for quota-efficiency observation, or `null` when no input/cache samples exist. Not used in `plan` ranking weights. |
+| `longRate`, `allRate`, `shortSeconds` | number \| null | Median tok/s for long requests, all requests, and median seconds for short requests. |
+| `lowSample` | boolean | `true` when `longRequests < 20` (excluded from `plan` tie-breaking). |
+| `dispatch` | object \| null | `{ successes, total }` from the acceptance ledger, or `null`. |
+| `firstMs`, `lastMs` | integer | Earliest and latest request end timestamps in milliseconds. |

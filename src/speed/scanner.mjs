@@ -10,8 +10,14 @@ import {
   speedSample,
 } from './histogram.mjs';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const DAY_MS = 86_400_000;
+
+const nonNegNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) && num >= 0 ? num : null;
+};
 
 // 只读本地日志与数据库；路径全部可注入，默认才落到家目录。
 export function resolveSpeedPaths({ homeDir, env = process.env, ...overrides } = {}) {
@@ -44,7 +50,7 @@ function parseMs(value) {
 class RowAccumulator {
   #rows = new Map();
 
-  add(provider, model, tier, outputTokens, startMs, endMs) {
+  add(provider, model, tier, outputTokens, startMs, endMs, cacheUsage = null) {
     if (!model || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
     const sample = speedSample(outputTokens, startMs, endMs);
     if (sample === null) return;
@@ -55,7 +61,8 @@ class RowAccumulator {
       row = {
         provider, model, ...(tier ? { tier } : {}), day,
         long: new Map(), all: new Map(), short: new Map(),
-        outputTokens: 0, firstMs: endMs, lastMs: endMs,
+        outputTokens: 0, inputTokens: 0, cachedInputTokens: 0,
+        firstMs: endMs, lastMs: endMs,
       };
       this.#rows.set(key, row);
     }
@@ -63,6 +70,11 @@ class RowAccumulator {
     if (outputTokens >= SPEED_LONG_OUTPUT_TOKENS) addToBins(row.long, sample.tokensPerSecond);
     if (outputTokens <= SPEED_SHORT_MAX_OUTPUT_TOKENS) addToBins(row.short, sample.seconds);
     row.outputTokens += outputTokens;
+    if (cacheUsage && Number.isFinite(cacheUsage.inputTokens) && cacheUsage.inputTokens > 0) {
+      const cached = Number.isFinite(cacheUsage.cachedInputTokens) ? cacheUsage.cachedInputTokens : 0;
+      row.inputTokens += cacheUsage.inputTokens;
+      row.cachedInputTokens += Math.min(cacheUsage.inputTokens, Math.max(0, cached));
+    }
     row.firstMs = Math.min(row.firstMs, endMs);
     row.lastMs = Math.max(row.lastMs, endMs);
   }
@@ -97,7 +109,9 @@ async function scanClaudeFile(file) {
   let current = null;
   const flush = () => {
     if (current && current.startMs !== null && !String(current.model ?? '<').startsWith('<')) {
-      acc.add('claude', current.model, null, current.tokens, current.startMs, current.endMs);
+      const totalInput = current.hasCacheFields ? current.input + current.cacheRead + current.cacheCreate : 0;
+      const cacheUsage = totalInput > 0 ? { inputTokens: totalInput, cachedInputTokens: current.cacheRead } : null;
+      acc.add('claude', current.model, null, current.tokens, current.startMs, current.endMs, cacheUsage);
     }
     current = null;
   };
@@ -114,14 +128,33 @@ async function scanClaudeFile(file) {
     }
     const message = entry.message;
     if (entry.type !== 'assistant' || !message?.id || ms === null) return;
-    const tokens = message.usage?.output_tokens;
+    const usage = message.usage;
+    const tokens = usage?.output_tokens;
     if (!Number.isFinite(tokens)) return;
+    const input = nonNegNumber(usage?.input_tokens);
+    const cacheRead = nonNegNumber(usage?.cache_read_input_tokens);
+    const cacheCreate = nonNegNumber(usage?.cache_creation_input_tokens);
     if (current?.id !== message.id) {
       flush();
-      current = { id: message.id, model: message.model, startMs: lastUserMs, endMs: ms, tokens };
+      current = {
+        id: message.id, model: message.model, startMs: lastUserMs, endMs: ms, tokens,
+        input: input ?? 0,
+        cacheRead: cacheRead ?? 0,
+        cacheCreate: cacheCreate ?? 0,
+        hasCacheFields: cacheRead !== null || cacheCreate !== null,
+      };
     }
     current.endMs = Math.max(current.endMs, ms);
     current.tokens = Math.max(current.tokens, tokens);
+    if (input !== null) current.input = Math.max(current.input, input);
+    if (cacheRead !== null) {
+      current.cacheRead = Math.max(current.cacheRead, cacheRead);
+      current.hasCacheFields = true;
+    }
+    if (cacheCreate !== null) {
+      current.cacheCreate = Math.max(current.cacheCreate, cacheCreate);
+      current.hasCacheFields = true;
+    }
   });
   flush();
   return acc.toRows();
@@ -129,6 +162,14 @@ async function scanClaudeFile(file) {
 
 const CODEX_START_ITEMS = new Set(['function_call_output', 'custom_tool_call_output', 'local_shell_call_output']);
 const CODEX_OUTPUT_ITEMS = new Set(['reasoning', 'function_call', 'custom_tool_call', 'local_shell_call']);
+
+function codexCacheUsage(usage) {
+  if (!usage || typeof usage !== 'object') return null;
+  const input = nonNegNumber(usage.input_tokens);
+  const cached = nonNegNumber(usage.cached_input_tokens ?? usage.input_tokens_details?.cached_tokens);
+  if (input === null || input <= 0 || cached === null) return null;
+  return { inputTokens: input, cachedInputTokens: Math.min(input, cached) };
+}
 
 // Codex：用户消息 / task_started / 工具输出为起点，本次最后一个模型输出项为终点，
 // 在 token_usage_record（新格式）或 token_count（旧格式）处出账。
@@ -139,9 +180,9 @@ async function scanCodexFile(file) {
   let lastOutputMs = null;
   let lastTotal = null;
   const seenResponses = new Set();
-  const settle = (out) => {
+  const settle = (out, cacheUsage = null) => {
     if (startMs !== null && lastOutputMs !== null && Number.isFinite(out)) {
-      acc.add('codex', model, null, out, startMs, lastOutputMs);
+      acc.add('codex', model, null, out, startMs, lastOutputMs, cacheUsage);
     }
     startMs = null;
     lastOutputMs = null;
@@ -158,7 +199,7 @@ async function scanCodexFile(file) {
       const id = payload.response_id;
       if (id && seenResponses.has(id)) return;
       if (id) seenResponses.add(id);
-      settle(payload.usage?.output_tokens);
+      settle(payload.usage?.output_tokens, codexCacheUsage(payload.usage));
     } else if (entry.type === 'event_msg') {
       if (payload.type === 'task_started') {
         startMs = ms;
@@ -167,7 +208,7 @@ async function scanCodexFile(file) {
         const total = payload.info.total_token_usage?.total_tokens;
         if (total !== undefined && total === lastTotal) return;
         lastTotal = total ?? null;
-        settle(payload.info.last_token_usage?.output_tokens);
+        settle(payload.info.last_token_usage?.output_tokens, codexCacheUsage(payload.info.last_token_usage));
       }
     } else if (entry.type === 'response_item') {
       if (payload.type === 'message' && payload.role === 'user') {
@@ -184,6 +225,13 @@ async function scanCodexFile(file) {
   return acc.toRows();
 }
 
+function eventCacheUsage(event) {
+  const input = nonNegNumber(event.inputTokens ?? event.input_tokens);
+  const cached = nonNegNumber(event.cachedInputTokens ?? event.cached_input_tokens);
+  if (input === null || input <= 0 || cached === null) return null;
+  return { inputTokens: input, cachedInputTokens: Math.min(input, cached) };
+}
+
 // 通用事件交换格式（Antigravity / Gemini）：每条 { model, outputTokens, startedAt, endedAt }，时间可为毫秒或 ISO。
 const addEvent = (acc, event, provider) => {
   if (!event || typeof event !== 'object') return;
@@ -194,6 +242,7 @@ const addEvent = (acc, event, provider) => {
     Number(event.outputTokens ?? event.output_tokens),
     parseMs(event.startedAt ?? event.started_at ?? event.startMs ?? event.started_ms),
     parseMs(event.endedAt ?? event.ended_at ?? event.endMs ?? event.ended_ms),
+    eventCacheUsage(event),
   );
 };
 
