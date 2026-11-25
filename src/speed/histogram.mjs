@@ -72,6 +72,7 @@ export const speedRowKey = (row) => JSON.stringify([row.provider, row.model, row
 export function speedDispatchScores(records, aliases = DEFAULT_SCORING_CONFIG.aliases) {
   const grouped = new Map();
   for (const record of records) {
+    if (record.outcome === 'cancelled') continue;
     const provider = aliases?.provider?.[record.executor.provider] ?? record.executor.provider;
     const model = speedModel(provider, record.executor.model);
     const key = scoreKey(provider, model);

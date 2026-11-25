@@ -75,8 +75,11 @@ const decisionView = (decision, disabled) =>
 
 const scoresView = (summary) => ({
   minSamples: summary?.minSamples ?? 5,
-  cells: (summary?.cells ?? []).map(({ identity, task, n, s, f, passRate, interval90, durationMedianMin, costMedian, costCurrency }) => ({
+  cells: (summary?.cells ?? []).map(({ identity, task, n, s, f, passRate, interval90, durationMedianMin, costMedian, costCurrency, aborted, cancelled, abortReasons }) => ({
     identity, task, n, s, f, passRate, interval90, durationMedianMin, costMedian, costCurrency,
+    aborted: aborted ?? 0,
+    cancelled: cancelled ?? 0,
+    abortReasons: abortReasons ?? {},
   })),
 });
 

@@ -433,3 +433,22 @@ test('cacheHitRate aggregates Claude, Codex, and generic events, ignores missing
     env.cleanup();
   }
 });
+
+test('speedDispatchScores excludes cancelled records and omits models with only cancelled records', () => {
+  const records = [
+    record(),
+    record({ accepted: false, firstPass: false, outcome: 'failed', abortReason: 'error' }),
+    record({ accepted: false, firstPass: false, outcome: 'cancelled', abortReason: 'user' }),
+    record({ accepted: false, firstPass: false, outcome: 'cancelled' }),
+    record({
+      executor: { provider: 'claudeAgent', model: 'claude-opus-5-5', effort: 'high', tier: 'personal', site: 'local' },
+      accepted: false,
+      firstPass: false,
+      outcome: 'cancelled',
+    }),
+  ];
+  const scores = speedDispatchScores(records);
+  const codex = scores.find((score) => score.provider === 'codex');
+  assert.deepEqual(codex, { provider: 'codex', model: 'gpt-5.3-codex', successes: 1, total: 2 });
+  assert.equal(scores.find((score) => score.provider === 'claude'), undefined);
+});

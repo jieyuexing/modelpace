@@ -10,23 +10,24 @@
       creditCards: 'reset credit(s)', credit: 'reset credit', expires: 'expires', noCredits: 'no reset credits',
       paceSurplus: 'ahead of pace', paceBalanced: 'on pace', paceConserve: 'behind pace', paceUnknown: 'no pace data',
       speedHint: 'Median tok/s of requests with >=1000 output tokens, from local session logs.',
-      rank: '#', model: 'Model', channel: 'Channel', rate: 'tok/s', short: 'Short s', requests: 'Requests',
+      rank: '#', model: 'Model', channel: 'Channel', rate: 'tok/s', short: 'Short s', requests: 'Requests', cache: 'Cache',
       dispatchPass: 'Dispatch Pass', noSpeed: 'No local speed samples found.', lowSample: 'Low sample (<20 long requests)',
       showLow: 'Show {n} low-sample rows', hideLow: 'Hide low-sample rows', shareImage: 'Share Image',
       shareTitle: 'Share image', download: 'Download PNG', copy: 'Copy to clipboard', close: 'Close', copied: 'Copied',
       copyFailed: 'Copy not supported here', rows: 'Rows', noRows: 'Nothing to draw',
       scoresHint: 'Beta(1,1) pass rate with 90% interval, median task duration and nominal cost per run.',
       identity: 'Identity', task: 'Task', passRate: 'Pass rate', interval: '90% interval', n: 'n', duration: 'Median min',
-      cost: 'Cost / run', noScores: 'No acceptance records.', trial: 'trial', audit: 'Latest dispatch decision',
+      cost: 'Cost / run', aborts: 'Aborts', abortedLabel: 'aborted', cancelledLabel: 'cancelled', noScores: 'No acceptance records.', trial: 'trial', audit: 'Latest dispatch decision',
       action: 'Action', candidate: 'Candidate', quota: 'Quota', quality: 'Quality', eligible: 'Eligible', speed: 'tok/s',
       pace: 'Pace', notes: 'Notes', noDecision: 'No dispatch decision available.', yes: 'yes', no: 'no',
-      shareHeaderRate: 'tok/s', shareHeaderPass: 'Tasks passed',
+      shareHeaderRate: 'tok/s', shareHeaderCache: 'Cache', shareHeaderPass: 'Tasks passed',
       shareTitleText: 'Output Speed of the Models I Use',
       shareSubtitle: (period, omitted) => `Compiled from my local session logs · ${period} · median of requests with ≥1,000 output tokens${omitted}`,
       shareOmitted: (n, sparse) => ` · ${n} ${sparse ? 'low-sample ' : ''}model${n === 1 ? '' : 's'} not shown`,
-      shareThin: 'Hatched: <20 speed samples', shareNoDispatch: 'no delegated tasks',
+      shareThin: 'Hatched: <20 speed samples', shareNoDispatch: 'no delegated tasks', shareNoCache: 'no cache data',
       shareNoteSpeed: 'Speed = output tokens (incl. thinking) ÷ request wall time (incl. time to first token, network and queueing). Real-world speed on my machine, not vendor-reported decode speed.',
       shareNotePass: 'Tasks passed = delegated tasks that were accepted with no false report, no scope violation, stopped when access was denied and at most one rework round, out of all delegated tasks (all-time).',
+      shareNoteCache: 'Cache = cached input tokens ÷ total input tokens across scanned requests (quota-efficiency observation only).',
       shareNoteChannel: 'The tag under each name is the client the model ran through. Speed is measured separately per client.',
       shareBrand: 'Generated with modelpace', periodJoin: ' to ',
     },
@@ -38,23 +39,24 @@
       creditCards: '张重置卡', credit: '重置卡', expires: '到期', noCredits: '无重置卡',
       paceSurplus: '领先节奏', paceBalanced: '节奏正常', paceConserve: '落后节奏', paceUnknown: '无节奏数据',
       speedHint: '本机会话日志中输出 ≥1000 token 请求的 tok/s 中位数。',
-      rank: '#', model: '模型', channel: '通道', rate: 'tok/s', short: '短请求秒', requests: '请求数',
+      rank: '#', model: '模型', channel: '通道', rate: 'tok/s', short: '短请求秒', requests: '请求数', cache: '缓存',
       dispatchPass: '派发通过', noSpeed: '没有找到本地速度样本。', lowSample: '样本少（长请求 <20）',
       showLow: '展开 {n} 个样本少的行', hideLow: '收起样本少的行', shareImage: '分享图',
       shareTitle: '分享图', download: '下载 PNG', copy: '复制到剪贴板', close: '关闭', copied: '已复制',
       copyFailed: '当前环境不支持复制', rows: '行', noRows: '没有可画的行',
       scoresHint: 'Beta(1,1) 通过率及 90% 区间、任务耗时中位数与名义单次成本。',
       identity: '执行者', task: '任务', passRate: '通过率', interval: '90% 区间', n: '样本', duration: '耗时中位(分)',
-      cost: '单次成本', noScores: '暂无验收记录。', trial: '试用', audit: '最近一次派发决策',
+      cost: '单次成本', aborts: '中断/取消', abortedLabel: '中断', cancelledLabel: '取消', noScores: '暂无验收记录。', trial: '试用', audit: '最近一次派发决策',
       action: '动作', candidate: '候选', quota: '额度', quality: '质量', eligible: '可用', speed: 'tok/s',
       pace: '节奏', notes: '说明', noDecision: '暂无派发决策。', yes: '是', no: '否',
-      shareHeaderRate: '速率 tok/s', shareHeaderPass: '派发通过',
+      shareHeaderRate: '速率 tok/s', shareHeaderCache: '缓存命中', shareHeaderPass: '派发通过',
       shareTitleText: '我用过的模型 · 输出速率排行',
       shareSubtitle: (period, omitted) => `从本机会话日志汇总 · ${period} · 单次输出 ≥1000 token 的请求取中位数${omitted}`,
       shareOmitted: (n, sparse) => ` · 未列出 ${n} 个${sparse ? '样本 <20 次的' : ''}模型`,
-      shareThin: '斜纹：速率样本 <20 次', shareNoDispatch: '没有派发记录',
+      shareThin: '斜纹：速率样本 <20 次', shareNoDispatch: '没有派发记录', shareNoCache: '无缓存数据',
       shareNoteSpeed: '速率 = 输出 token（含思考）÷ 单次请求耗时（含首字等待、网络与排队），是这台机器上的实际体验，不是厂商标称的纯生成速度。',
       shareNotePass: '派发通过 = 派发给该模型的任务中，复核通过、未虚报、未越界、遇授权拒绝即停、返工不超过 1 轮的次数 / 派发次数（全部历史）。',
+      shareNoteCache: '缓存命中 = 命中缓存的输入 token ÷ 总输入 token（仅作额度效率观察，不影响派发排序）。',
       shareNoteChannel: '名称下方标签为调用通道（客户端），同一模型经不同通道调用时速率分开统计。',
       shareBrand: '由 modelpace 生成', periodJoin: ' 至 ',
     },
@@ -162,6 +164,18 @@
   const rowKey = (row) => JSON.stringify([row.provider, row.model, row.tier ?? null]);
   const rowName = (row) => `${displayName(row.model)}${row.tier ? ` (${row.tier})` : ''}`;
   const passText = (row) => (row.dispatch ? `${row.dispatch.successes}/${row.dispatch.total}` : EM_DASH);
+  const cacheText = (row) => (typeof row.cacheHitRate === 'number' && Number.isFinite(row.cacheHitRate) ? pct(row.cacheHitRate * 100, 1) : EM_DASH);
+  function abortText(cell) {
+    const aborted = cell.aborted ?? 0;
+    const cancelled = cell.cancelled ?? 0;
+    if (!aborted && !cancelled) return EM_DASH;
+    const reasons = Object.entries(cell.abortReasons ?? {}).map(([reason, count]) => `${reason}:${count}`).join(', ');
+    const parts = [];
+    if (aborted > 0) parts.push(cancelled > 0 ? `${aborted} ${t('abortedLabel')}` : String(aborted));
+    if (cancelled > 0) parts.push(`${cancelled} ${t('cancelledLabel')}`);
+    const summary = parts.join(', ');
+    return reasons ? `${summary} (${reasons})` : summary;
+  }
 
   // ---- Tab 1：额度与 Even Pace ----
   const PACE_TEXT = { surplus: 'paceSurplus', balanced: 'paceBalanced', conserve: 'paceConserve', unknown: 'paceUnknown' };
@@ -209,6 +223,7 @@
   function renderSpeed() {
     const rows = data.speed.ranking;
     if (!rows.length) return h('p', { class: 'empty' }, t('noSpeed'));
+    const showCache = rows.some((row) => typeof row.cacheHitRate === 'number');
     const solid = rows.filter((row) => !row.lowSample);
     const split = solid.length === 0 ? { solid: rows, sparse: [] } : { solid, sparse: rows.filter((row) => row.lowSample) };
     const visible = showLow ? [...split.solid, ...split.sparse] : split.solid;
@@ -224,18 +239,21 @@
         h('td', { class: 'num strong' }, num(row.longRate ?? row.allRate)),
         h('td', { class: 'num' }, num(row.shortSeconds, 2)),
         h('td', { class: 'num' }, `${row.longRequests}/${row.requests}`),
+        showCache ? h('td', { class: 'num' }, cacheText(row)) : null,
         h('td', { class: 'num' }, passText(row)));
     });
     const toggle = split.sparse.length
       ? h('button', { class: 'btn', onclick: () => { showLow = !showLow; render(); } },
           showLow ? t('hideLow') : t('showLow').replace('{n}', split.sparse.length))
       : null;
+    const headers = [t('rank'), t('model'), '', t('rate'), t('short'), t('requests'), ...(showCache ? [t('cache')] : []), t('dispatchPass')];
     return h('div', null,
       h('div', { class: 'toolbar' }, h('p', { class: 'muted' }, t('speedHint')),
         h('button', { class: 'btn primary', onclick: openShare }, t('shareImage'))),
-      h('table', null,
-        h('thead', null, h('tr', null, [t('rank'), t('model'), '', t('rate'), t('short'), t('requests'), t('dispatchPass')].map((label, i) => h('th', { class: i > 2 ? 'num' : '' }, label)))),
-        h('tbody', null, body)),
+      h('div', { class: 'table-wrap' },
+        h('table', null,
+          h('thead', null, h('tr', null, headers.map((label, i) => h('th', { class: i > 2 ? 'num' : '' }, label)))),
+          h('tbody', null, body))),
       toggle,
       data.speed.warnings.length ? h('ul', { class: 'muted small' }, data.speed.warnings.map((w) => h('li', null, w))) : null);
   }
@@ -243,6 +261,7 @@
   // ---- Tab 3：验收评分与派发审计 ----
   function renderScores() {
     const { cells, minSamples } = data.scores;
+    const showAborts = cells.some((c) => (c.aborted ?? 0) > 0 || (c.cancelled ?? 0) > 0);
     const intervalBar = (cell) => (cell.interval90
       ? h('div', { class: 'ci' }, h('div', { class: 'ci-range', style: `left:${cell.interval90[0] * 100}%;width:${(cell.interval90[1] - cell.interval90[0]) * 100}%` }),
           h('div', { class: 'ci-dot', style: `left:${cell.passRate * 100}%` }))
@@ -253,9 +272,12 @@
       h('td', { class: 'ci-cell' }, intervalBar(cell)),
       h('td', { class: 'num' }, `${cell.n} (${cell.s}/${cell.f})`),
       h('td', { class: 'num' }, num(cell.durationMedianMin)),
-      h('td', { class: 'num' }, cell.costMedian === null ? EM_DASH : `${cell.costCurrency} ${cell.costMedian.toFixed(2)}`)));
+      h('td', { class: 'num' }, cell.costMedian === null ? EM_DASH : `${cell.costCurrency} ${cell.costMedian.toFixed(2)}`),
+      showAborts ? h('td', { class: 'small' }, abortText(cell)) : null));
+    const scoreHeaders = [t('identity'), t('task'), t('passRate'), t('interval'), t('n'), t('duration'), t('cost'), ...(showAborts ? [t('aborts')] : [])];
     const scoresTable = cells.length
-      ? h('table', null, h('thead', null, h('tr', null, [t('identity'), t('task'), t('passRate'), t('interval'), t('n'), t('duration'), t('cost')].map((l, i) => h('th', { class: i > 1 && i !== 3 ? 'num' : '' }, l)))), h('tbody', null, scoreRows))
+      ? h('div', { class: 'table-wrap' },
+          h('table', null, h('thead', null, h('tr', null, scoreHeaders.map((l, i) => h('th', { class: i > 1 && i !== 3 && i < 7 ? 'num' : '' }, l)))), h('tbody', null, scoreRows)))
       : h('p', { class: 'empty' }, t('noScores'));
 
     const decision = data.decision;
@@ -264,12 +286,13 @@
           h('p', null, h('strong', null, `${t('action')}: ${decision.action}`),
             decision.recommended ? ` → ${decision.recommended.instanceId} / ${decision.recommended.model}` : '',
             h('span', { class: 'muted' }, ` · slot=${decision.slot} task=${decision.task}${decision.tier ? ` tier=${decision.tier}` : ''}`)),
-          h('table', null,
-            h('thead', null, h('tr', null, [t('candidate'), t('quota'), t('quality'), t('eligible'), t('speed'), t('pace'), t('notes')].map((l, i) => h('th', { class: i > 3 && i < 6 ? 'num' : '' }, l)))),
-            h('tbody', null, decision.candidates.map((c) => h('tr', { class: c.eligible ? '' : 'dim' },
-              h('td', null, `${c.candidateId} (${c.instanceId}/${c.model})`), h('td', null, c.quotaState), h('td', null, c.qualityTier ?? EM_DASH),
-              h('td', null, c.eligible ? t('yes') : t('no')), h('td', { class: 'num' }, num(c.speedLongRate)), h('td', { class: 'num' }, num(c.paceScore, 2)),
-              h('td', { class: 'small' }, [...c.rejectionReasons, ...c.warnings].join('; ')))))))
+          h('div', { class: 'table-wrap' },
+            h('table', null,
+              h('thead', null, h('tr', null, [t('candidate'), t('quota'), t('quality'), t('eligible'), t('speed'), t('pace'), t('notes')].map((l, i) => h('th', { class: i > 3 && i < 6 ? 'num' : '' }, l)))),
+              h('tbody', null, decision.candidates.map((c) => h('tr', { class: c.eligible ? '' : 'dim' },
+                h('td', null, `${c.candidateId} (${c.instanceId}/${c.model})`), h('td', null, c.quotaState), h('td', null, c.qualityTier ?? EM_DASH),
+                h('td', null, c.eligible ? t('yes') : t('no')), h('td', { class: 'num' }, num(c.speedLongRate)), h('td', { class: 'num' }, num(c.paceScore, 2)),
+                h('td', { class: 'small' }, [...c.rejectionReasons, ...c.warnings].join('; '))))))))
       : h('p', { class: 'empty' }, t('noDecision'));
     return h('div', null, h('p', { class: 'muted' }, t('scoresHint')), scoresTable, h('h3', { class: 'section' }, t('audit')), audit);
   }
@@ -295,7 +318,9 @@
     const hidden = data.speed.ranking.filter((row) => !chosen.includes(row));
     const rows = chosen.map((row, index) => ({
       rank: index + 1, name: rowName(row), channel: channelOf(row.provider), color: vendorOf(row.model).color,
-      rate: row.longRate, thin: row.lowSample, dispatch: row.dispatch ? passText(row) : null,
+      rate: row.longRate, thin: row.lowSample,
+      cache: typeof row.cacheHitRate === 'number' ? pct(row.cacheHitRate * 100, 1) : null,
+      dispatch: row.dispatch ? passText(row) : null,
     }));
     const present = new Set(chosen.map((row) => vendorOf(row.model).name));
     const maxRate = Math.max(0, ...rows.map((row) => row.rate));
@@ -304,23 +329,33 @@
     const max = Math.max(maxRate * 1.05, step);
     const ticks = [];
     for (let tick = 0; tick <= max; tick += step) ticks.push(tick);
+    const showCache = rows.some((row) => row.cache !== null);
     const showDispatch = rows.some((row) => row.dispatch !== null);
     const period = `${data.speed.sinceDay}${t('periodJoin')}${data.speed.untilDay}`;
+    const missingKeys = [
+      showDispatch && rows.some((row) => row.dispatch === null) ? t('shareNoDispatch') : null,
+      showCache && rows.some((row) => row.cache === null) ? t('shareNoCache') : null,
+    ].filter(Boolean);
     return {
-      rows, showDispatch, axis: { max, ticks }, vendors: VENDOR_ORDER.filter((v) => present.has(v.name)),
+      rows, showCache, showDispatch, axis: { max, ticks }, vendors: VENDOR_ORDER.filter((v) => present.has(v.name)),
       title: t('shareTitleText'),
       subtitle: t('shareSubtitle')(period, hidden.length ? t('shareOmitted')(hidden.length, hidden.every((row) => row.lowSample)) : ''),
       thinKey: rows.some((row) => row.thin) ? t('shareThin') : null,
-      noDispatchKey: showDispatch && rows.some((row) => row.dispatch === null) ? `${EM_DASH}: ${t('shareNoDispatch')}` : null,
-      notes: [t('shareNoteSpeed'), ...(showDispatch ? [t('shareNotePass')] : []), t('shareNoteChannel')],
-      brand: t('shareBrand'), headerRate: t('shareHeaderRate'), headerPass: t('shareHeaderPass'),
+      noDispatchKey: missingKeys.length ? `${EM_DASH}: ${missingKeys.join(' / ')}` : null,
+      notes: [
+        t('shareNoteSpeed'),
+        ...(showDispatch ? [t('shareNotePass')] : []),
+        ...(showCache ? [t('shareNoteCache')] : []),
+        t('shareNoteChannel'),
+      ],
+      brand: t('shareBrand'), headerRate: t('shareHeaderRate'), headerCache: t('shareHeaderCache'), headerPass: t('shareHeaderPass'),
     };
   }
 
-  const W = 1200, SCALE = 2, PAD = 60, ROW_H = 58;
+  const W = 1200, SCALE = 2, PAD = 60, ROW_H = 58, GAP = 16;
   const FONT = '-apple-system, system-ui, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei", sans-serif';
-  const RANK_R = PAD + 30, NAME_R = RANK_R + 16 + 290, TRACK_L = NAME_R + 16, TRACK_W = 528;
-  const RATE_R = TRACK_L + TRACK_W + 16 + 72, PASS_R = RATE_R + 16 + 96, CONTENT_W = W - PAD * 2;
+  const RANK_R = PAD + 30, NAME_R = RANK_R + 16 + 290, TRACK_L = NAME_R + 16;
+  const RATE_W = 72, CACHE_W = 84, PASS_W = 96, RIGHT = W - PAD, CONTENT_W = W - PAD * 2;
   const WORD = /[（「『《【]*(?:[　-鿿＀-￯]|[^\s　-鿿＀-￯]+)[，。、；：）」』》】！？]*\s*/g;
 
   function wrap(measure, text, maxWidth) {
@@ -378,14 +413,19 @@
       ctx.fillStyle = vendor.color; ctx.beginPath(); ctx.roundRect(x, y + 3.5, 12, 12, 3); ctx.fill();
       x += 19; x += text(vendor.name, x, y + 9.5, { size: 16, color: '#c7cdd8' }) + 22;
     }
+    const passR = s.showDispatch ? RIGHT : null;
+    const cacheR = s.showCache ? (passR !== null ? passR - PASS_W - GAP : RIGHT) : null;
+    const rateR = cacheR !== null ? cacheR - CACHE_W - GAP : (passR !== null ? passR - PASS_W - GAP : RIGHT);
+    const trackW = rateR - RATE_W - GAP - TRACK_L;
     y += 45;
-    for (const tick of s.axis.ticks) text(String(tick), TRACK_L + (tick / s.axis.max) * TRACK_W, y + 12, { size: 13, color: '#7d8697' }, 'center');
-    text(s.headerRate, RATE_R, y + 13, { size: 13, color: '#7d8697' }, 'right');
-    if (s.showDispatch) text(s.headerPass, PASS_R, y + 13, { size: 13, color: '#7d8697' }, 'right');
+    for (const tick of s.axis.ticks) text(String(tick), TRACK_L + (tick / s.axis.max) * trackW, y + 12, { size: 13, color: '#7d8697' }, 'center');
+    text(s.headerRate, rateR, y + 13, { size: 13, color: '#7d8697' }, 'right');
+    if (s.showCache) text(s.headerCache, cacheR, y + 13, { size: 13, color: '#7d8697' }, 'right');
+    if (s.showDispatch) text(s.headerPass, passR, y + 13, { size: 13, color: '#7d8697' }, 'right');
     y += 26;
     const top0 = y, bottom0 = y + s.rows.length * ROW_H;
     ctx.fillStyle = '#232834';
-    for (const tick of s.axis.ticks) if (tick > 0) ctx.fillRect(TRACK_L + (tick / s.axis.max) * TRACK_W - 0.5, top0, 1, bottom0 - top0);
+    for (const tick of s.axis.ticks) if (tick > 0) ctx.fillRect(TRACK_L + (tick / s.axis.max) * trackW - 0.5, top0, 1, bottom0 - top0);
     for (const row of s.rows) {
       const top = y + 6;
       text(String(row.rank), RANK_R, y + 29, { size: 17, color: '#5f6779' }, 'right');
@@ -394,14 +434,15 @@
       ctx.beginPath(); ctx.roundRect(chipX, top + 28, chipW, 18, 5); ctx.fillStyle = alpha(row.channel.color, 0.12); ctx.fill();
       ctx.strokeStyle = alpha(row.channel.color, 0.55); ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(chipX + 0.5, top + 28.5, chipW - 1, 17, 4.5); ctx.stroke();
       text(row.channel.label, chipX + 7, top + 37.5, { size: 12.5, weight: 600, color: row.channel.color });
-      const barW = (row.rate / s.axis.max) * TRACK_W;
+      const barW = (row.rate / s.axis.max) * trackW;
       ctx.save(); ctx.beginPath(); ctx.roundRect(TRACK_L, y + 17, barW, 24, [0, 6, 6, 0]);
       if (row.thin) {
         ctx.clip(); hatch(ctx, TRACK_L, y + 17, barW, 24, row.color); ctx.restore();
         ctx.strokeStyle = row.color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(TRACK_L + 0.75, y + 17.75, barW - 1.5, 22.5, [0, 5.25, 5.25, 0]); ctx.stroke();
       } else { ctx.fillStyle = row.color; ctx.fill(); ctx.restore(); }
-      text(row.rate.toFixed(1), RATE_R, y + 29, { size: 21, weight: 700, color: '#e9ecf1' }, 'right');
-      if (s.showDispatch) text(row.dispatch ?? EM_DASH, PASS_R, y + 29, { size: 17, color: '#aeb6c4' }, 'right');
+      text(row.rate.toFixed(1), rateR, y + 29, { size: 21, weight: 700, color: '#e9ecf1' }, 'right');
+      if (s.showCache) text(row.cache ?? EM_DASH, cacheR, y + 29, { size: 17, color: '#aeb6c4' }, 'right');
+      if (s.showDispatch) text(row.dispatch ?? EM_DASH, passR, y + 29, { size: 17, color: '#aeb6c4' }, 'right');
       y += ROW_H;
     }
     y += 26; ctx.fillStyle = '#232834'; ctx.fillRect(PAD, y, CONTENT_W, 1); y += 19;
