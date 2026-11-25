@@ -35,27 +35,41 @@ function qualityTierRank(qualityTier, mode) {
   return 2; // below_threshold (demote)
 }
 
-function compareCandidates(a, b, policy) {
+/**
+ * 合格候选按耗时中位数分档：从最快者起，相对本档最快者不超过 marginRatio 的归入同档，档内再走决胜键。
+ * 逐对“容差内算平”不传递（10/11/12 分钟两两相邻算平、首尾不算），排序会随输入顺序变化；先分档再比档号才是全序。
+ */
+function durationBands(candidates, marginRatio) {
+  const bands = new Map();
+  const timed = candidates
+    .filter((c) => c.qualityTier === 'qualified' && c.scoreCell?.durationMedianMin != null)
+    .sort((a, b) => a.scoreCell.durationMedianMin - b.scoreCell.durationMedianMin);
+  let band = -1;
+  let anchor = null;
+  for (const c of timed) {
+    const duration = c.scoreCell.durationMedianMin;
+    const tied = anchor !== null && (anchor === 0 ? duration === 0 : (duration - anchor) / anchor <= marginRatio);
+    if (!tied) {
+      band += 1;
+      anchor = duration;
+    }
+    bands.set(c, band);
+  }
+  return bands;
+}
+
+function compareCandidates(a, b, policy, bands) {
   const mode = policy.scoring.mode;
-  const marginRatio = policy.scoring.speedTieBreakerMarginRatio ?? 0.15;
 
   // 1. Quality tier (qualified > trial > below_threshold when mode === 'demote')
   const qRankDiff = qualityTierRank(a.qualityTier, mode) - qualityTierRank(b.qualityTier, mode);
   if (qRankDiff !== 0) return qRankDiff;
 
-  // 2. Within qualified: sort by task success median duration ascending (speed tie-breaks within margin)
+  // 2. Within qualified: faster duration band first (no duration sorts last), then tie-breakers
   if (a.qualityTier === 'qualified' && b.qualityTier === 'qualified') {
-    const aDur = a.scoreCell?.durationMedianMin ?? null;
-    const bDur = b.scoreCell?.durationMedianMin ?? null;
-    if (aDur !== null && bDur !== null) {
-      const minDur = Math.min(aDur, bDur);
-      const significant = minDur === 0
-        ? aDur !== bDur
-        : Math.abs(aDur - bDur) / minDur > marginRatio;
-      if (significant) return aDur - bDur;
-    } else if (aDur !== null || bDur !== null) {
-      return aDur !== null ? -1 : 1;
-    }
+    const aBand = bands.get(a) ?? Infinity;
+    const bBand = bands.get(b) ?? Infinity;
+    if (aBand !== bBand) return aBand < bBand ? -1 : 1;
 
     // Tie-breaker 1: Speed longRate descending
     const aRate = a.speedLongRate ?? -Infinity;
@@ -261,7 +275,9 @@ export function decideDispatch({
   }
 
   // Rank eligible candidates
-  const eligibleCandidates = audit.filter((c) => c.eligible).sort((a, b) => compareCandidates(a, b, policy));
+  const eligible = audit.filter((c) => c.eligible);
+  const bands = durationBands(eligible, policy.scoring.speedTieBreakerMarginRatio ?? 0.15);
+  const eligibleCandidates = eligible.sort((a, b) => compareCandidates(a, b, policy, bands));
   const compliant = audit.filter((c) => c.compliant);
 
   // Compute resetEvents & nextCheckAt

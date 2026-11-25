@@ -72,7 +72,7 @@ Candidates are tried in `priority` order (default: array order). Each one target
 | `mode` | `demote` | `demote`, `strict` (drop) or `advisory` (warn) for candidates below the pass rate. |
 | `minPassRate` | 0.85 | Lower bound of the pass rate to count as `qualified`. |
 | `minSamples` | 5 | Records needed in a cell (identity × task) before it counts. |
-| `speedTieBreakerMarginRatio` | 0.15 | Median durations within this ratio count as a tie. |
+| `speedTieBreakerMarginRatio` | 0.15 | Qualified candidates are banded by median duration: a median within this ratio of its band's fastest counts as a tie; a slower one starts the next band. |
 | `aliases` | `provider: { claudeAgent: claude }`, `tier: { "-": default }` | Maps spellings to one identity; `model` and `effort` aliases are allowed too. |
 | `durationUnreadableProviders` | `[]` | Providers whose records may have `durationMin: null`. |
 | `rejectRules`, `disabledProviders` | `[]` | Reject records matching `{ providerIn, providerNotIn, siteContains, modelIn, tierIn, reason }`. |
