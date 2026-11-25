@@ -252,7 +252,7 @@
         h('button', { class: 'btn primary', onclick: openShare }, t('shareImage'))),
       h('div', { class: 'table-wrap' },
         h('table', null,
-          h('thead', null, h('tr', null, headers.map((label, i) => h('th', { class: i > 2 ? 'num' : '' }, label)))),
+          h('thead', null, h('tr', null, headers.map((label, i) => h('th', { class: i === 2 ? 'bar-cell' : (i > 2 ? 'num' : '') }, label)))),
           h('tbody', null, body))),
       toggle,
       data.speed.warnings.length ? h('ul', { class: 'muted small' }, data.speed.warnings.map((w) => h('li', null, w))) : null);
@@ -473,7 +473,10 @@
     if (!holder) return;
     holder.textContent = '';
     if (!share.rows.length) { holder.append(h('p', { class: 'empty' }, t('noRows'))); modal.blob = null; return; }
-    modal.blob = await renderShareBlob(share);
+    const current = modal;
+    const blob = await renderShareBlob(share);
+    if (modal !== current) return;
+    modal.blob = blob;
     modal.url && URL.revokeObjectURL(modal.url);
     modal.url = URL.createObjectURL(modal.blob);
     holder.append(h('img', { src: modal.url, alt: share.title, class: 'share-img' }));

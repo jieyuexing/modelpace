@@ -77,11 +77,11 @@ body {
 .table-wrap { overflow-x: auto; max-width: 100%; }
 table { width: 100%; border-collapse: collapse; margin: 8px 0; }
 th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--c-border); vertical-align: middle; }
-th { font-size: 12px; font-weight: 500; color: var(--c-muted); }
+th { font-size: 12px; font-weight: 500; color: var(--c-muted); white-space: nowrap; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dim { opacity: 0.55; }
-.chip { display: inline-block; font-size: 11px; border: 1px solid; border-radius: 4px; padding: 0 5px; margin-top: 2px; }
-.bar-cell { width: 34%; }
+.chip { display: inline-block; font-size: 11px; border: 1px solid; border-radius: 4px; padding: 0 5px; margin-top: 2px; white-space: nowrap; }
+.bar-cell { width: 24%; min-width: 96px; }
 .speed-bar { height: 16px; border-radius: 0 6px 6px 0; background: var(--c); min-width: 2px; }
 .speed-bar.hatched { background: repeating-linear-gradient(45deg, var(--c) 0 6px, transparent 6px 11px); outline: 1.5px solid var(--c); outline-offset: -1.5px; }
 .ci-cell { width: 20%; }
