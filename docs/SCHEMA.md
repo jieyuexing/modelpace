@@ -121,7 +121,7 @@ Scoring (`modelpace scores`, MCP `dispatch_scores`): `failed` and `interrupted` 
 
 ### Optional `executedModel`
 
-`executedModel` (`string | null`) is optional and may be omitted (old ledger lines remain valid) or set to `null`. Use it to record the model identifier reported by the host/provider (for example `task_status.executedModel`, which T3 normalizes to a catalog slug for Claude and may leave `null` for Codex).
+`executedModel` (`string | null`) is optional and may be omitted (old ledger lines remain valid) or set to `null`. Use it to record the model identifier reported by the host/provider (for example `task_status.executedModel`). T3 fills it for Claude with the catalog slug the API reported (date suffix removed, no provider prefix, the same form as a config `model`); for Codex only when Codex reports a reroute, so `null` there means no reroute was reported; ACP providers such as Antigravity leave it `null`.
 
 - Absent or `null`: behavior is unchanged.
 - Non-empty string: on write (`record` / `dispatch_record`), both `executedModel` and `executor.model` are normalized through `scoring.aliases.model` and compared. If they differ, the record is still written and a warning is returned (in CLI `record` text output, `--format json`, and `warnings[]` of `dispatch_record`) advising that `executor.model` should be set to the model that actually ran. `executedModel` does not change `scoreIdentity` or pass-rate grouping.
