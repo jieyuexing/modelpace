@@ -552,6 +552,60 @@ test('when server.refreshProviders or polling server.getConfig rejects, fetchT3A
   }
 });
 
+test('fetchT3AutoConfig called directly without refreshTimeoutMs never refreshes stale quota', async () => {
+  const sandbox = makeSandbox();
+  const stalePayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T06:40:00.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+  const server = await startMockT3Server({ expectedToken: TOKEN, serverConfigPayload: stalePayload });
+  try {
+    sandbox.writeRuntime(server.origin);
+    await fetchT3AutoConfig({ env: sandbox.env, homeDir: sandbox.dir, policy: REFRESH_POLICY, now: () => NOW });
+    assert.deepEqual(server.requests.map((r) => r.tag), ['server.getConfig']);
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('when the global server.refreshProviders for a stale usage source account rejects, fetchT3AutoConfig returns the first config', async () => {
+  const sandbox = makeSandbox();
+  const payload = {
+    ...makeConfigSnapshot({
+      antigravityCheckedAt: '2026-11-23T07:00:00.000Z',
+      claudeCheckedAt: '2026-11-23T07:01:00.000Z',
+    }),
+    usageLimitSources: [
+      { id: 'proxy', accounts: [{ id: 'acct', usageLimits: { checkedAt: '2026-11-23T06:40:00.000Z', windows: [] } }] },
+    ],
+  };
+  const server = await startMockT3Server({
+    expectedToken: TOKEN,
+    onRefreshProviders: () => {
+      throw new Error('global refresh failed');
+    },
+    getServerConfig: () => payload,
+  });
+  try {
+    sandbox.writeRuntime(server.origin);
+    const config = await fetchT3AutoConfig({
+      env: sandbox.env,
+      homeDir: sandbox.dir,
+      now: () => NOW,
+      refreshTimeoutMs: 40_000,
+      pollIntervalMs: 10,
+    });
+    assert.equal(config.usageLimitSources[0].accounts[0].usageLimits.checkedAt, '2026-11-23T06:40:00.000Z');
+    const refreshCalls = server.requests.filter((r) => r.tag === 'server.refreshProviders');
+    assert.equal(refreshCalls.length, 1);
+    assert.equal(refreshCalls[0].payload.instanceId, undefined);
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
 test('when one target refreshes and another stays stale, polling stops ~10s after the latest refresh instead of waiting for total timeout', async () => {
   const sandbox = makeSandbox();
   const stalePayload = makeConfigSnapshot({
