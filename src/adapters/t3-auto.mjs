@@ -20,8 +20,9 @@ const SESSION_LABEL = 'modelpace';
 // server.getConfig 与 server.refreshProviders 只需要这一项权限；不传 --scope 时 T3 会签发包含终端与文件写入的标准客户端全套权限。
 const SESSION_SCOPE = 'orchestration:read';
 const SERVER_ENTRY = 'Contents/Resources/app.asar/apps/server/dist/bin.mjs';
-const DEFAULT_REFRESH_TIMEOUT_MS = 40_000;
+const DEFAULT_REFRESH_TIMEOUT_MS = 0;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
+const SETTLE_AFTER_PROGRESS_MS = 10_000;
 
 const isExecutable = (file) => {
   try {
@@ -179,9 +180,10 @@ function findStaleRefreshPlan(config, policy, nowMs) {
   };
 }
 
-function areTargetsFresh(config, plan, policy, nowMs) {
+function collectSettledTargets(config, plan, policy, nowMs) {
   const maxAge = policy?.pacing?.maxSnapshotAgeMinutes ?? DEFAULT_PACING_CONFIG.maxSnapshotAgeMinutes;
   const knownIds = policyInstanceIds(policy);
+  const settled = new Set();
   const byId = new Map(
     (config.providers ?? [])
       .filter((p) => typeof p?.instanceId === 'string' && p.instanceId.trim())
@@ -189,8 +191,9 @@ function areTargetsFresh(config, plan, policy, nowMs) {
   );
   for (const id of plan.staleProviderIds) {
     const provider = byId.get(id);
-    if (!provider || !isQuotaRefreshCandidate(provider, policy, knownIds)) continue;
-    if (isQuotaMissingOrStale(provider.usageLimits, nowMs, maxAge)) return false;
+    if (!provider || !isQuotaRefreshCandidate(provider, policy, knownIds) || !isQuotaMissingOrStale(provider.usageLimits, nowMs, maxAge)) {
+      settled.add(`provider:${id}`);
+    }
   }
   if (plan.staleSourceAccountKeys.length > 0) {
     const byKey = new Map();
@@ -201,12 +204,17 @@ function areTargetsFresh(config, plan, policy, nowMs) {
     }
     for (const key of plan.staleSourceAccountKeys) {
       const account = byKey.get(key);
-      if (!account || policy?.instances?.[key]?.enabled === false) continue;
-      if (account.usageLimits?.unavailable?.reason === 'unsupported') continue;
-      if (isQuotaMissingOrStale(account.usageLimits, nowMs, maxAge)) return false;
+      if (
+        !account ||
+        policy?.instances?.[key]?.enabled === false ||
+        account.usageLimits?.unavailable?.reason === 'unsupported' ||
+        !isQuotaMissingOrStale(account.usageLimits, nowMs, maxAge)
+      ) {
+        settled.add(`source:${key}`);
+      }
     }
   }
-  return true;
+  return settled;
 }
 
 async function withDeadline(promise, remainingMs) {
@@ -231,11 +239,98 @@ async function withDeadline(promise, remainingMs) {
   }
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function refreshStaleTargets({
+  rpc,
+  getConfig,
+  initialConfig,
+  plan,
+  policy,
+  readNow,
+  monotonicNow,
+  sleep,
+  refreshTimeoutMs,
+  pollIntervalMs,
+}) {
+  let config = initialConfig;
+  const targetCount = plan.staleProviderIds.length + plan.staleSourceAccountKeys.length;
+  const deadline = monotonicNow() + refreshTimeoutMs;
+
+  try {
+    if (plan.needsGlobalRefresh) {
+      const refreshResult = await withDeadline(
+        rpc.call('server.refreshProviders', {}).then(unwrapRpcExit),
+        deadline - monotonicNow(),
+      );
+      if (refreshResult.timedOut) return config;
+    } else {
+      const refreshResult = await withDeadline(
+        Promise.allSettled(
+          plan.staleProviderIds.map((instanceId) =>
+            rpc.call('server.refreshProviders', { instanceId }).then(unwrapRpcExit),
+          ),
+        ),
+        deadline - monotonicNow(),
+      );
+      if (refreshResult.timedOut) return config;
+      if (refreshResult.value.every((entry) => entry.status === 'rejected')) return config;
+    }
+  } catch {
+    return config;
+  }
+
+  const settled = new Set();
+  let lastProgressAt = null;
+
+  while (true) {
+    const nowTick = monotonicNow();
+    const remainingToDeadline = deadline - nowTick;
+    if (remainingToDeadline <= 0) break;
+
+    const effectiveDeadline = lastProgressAt === null
+      ? deadline
+      : Math.min(deadline, lastProgressAt + SETTLE_AFTER_PROGRESS_MS);
+    const pollTimeout = lastProgressAt === null
+      ? remainingToDeadline
+      : Math.min(remainingToDeadline, Math.max(pollIntervalMs, effectiveDeadline - nowTick));
+
+    let pollResult;
+    try {
+      pollResult = await withDeadline(getConfig(), pollTimeout);
+    } catch {
+      return config;
+    }
+    if (pollResult.timedOut) break;
+    config = pollResult.value;
+
+    const currentTick = monotonicNow();
+    let progressed = false;
+    for (const key of collectSettledTargets(config, plan, policy, readNow())) {
+      if (!settled.has(key)) {
+        settled.add(key);
+        progressed = true;
+      }
+    }
+    if (progressed) lastProgressAt = currentTick;
+
+    if (settled.size >= targetCount) break;
+
+    const stopAt = lastProgressAt === null
+      ? deadline
+      : Math.min(deadline, lastProgressAt + SETTLE_AFTER_PROGRESS_MS);
+    const remaining = stopAt - monotonicNow();
+    if (remaining <= 0) break;
+    await sleep(Math.min(pollIntervalMs, remaining));
+  }
+
+  return config;
+}
 
 /**
  * 零配置连接本机 T3 Code：经官方 CLI 签发 2 分钟、仅含 orchestration:read 的会话令牌，拉取 server.getConfig；
- * 若存在启用实例的额度缺失或过期，则调用 server.refreshProviders 并轮询 server.getConfig 至多 40 秒，
+ * 仅当显式传入 refreshTimeoutMs > 0 且存在启用实例的额度缺失或过期时，才调用 server.refreshProviders 并轮询 server.getConfig
+ * （全部变新、至少一个变新且随后 10 秒无新变新、或到达上限即停；刷新/轮询出错返回最后一次成功读到的配置），
  * 无论成败都吊销该会话。不读取任何凭据或 auth 缓存文件。
  */
 export async function fetchT3AutoConfig({
@@ -246,6 +341,8 @@ export async function fetchT3AutoConfig({
   cli,
   policy = null,
   now = Date.now,
+  monotonicNow = Date.now,
+  sleep = defaultSleep,
   run = (file, args, options) => execFileAsync(file, args, options),
   connect = connectT3,
   fetchConfig,
@@ -255,6 +352,7 @@ export async function fetchT3AutoConfig({
   platform = process.platform,
 } = {}) {
   const readNow = typeof now === 'function' ? now : () => now;
+  const readMonotonic = typeof monotonicNow === 'function' ? monotonicNow : () => monotonicNow;
   const resolvedBase = baseDir ?? env.T3CODE_HOME ?? path.join(homeDir, '.t3');
   const command = cli ?? discoverT3Cli({ env, homeDir });
   const serverOrigin = discoverT3Origin({ baseDir: resolvedBase, origin: origin ?? env.MODELPACE_ORIGIN });
@@ -296,39 +394,32 @@ export async function fetchT3AutoConfig({
       rpc = await connect({
         origin: serverOrigin,
         bearer: issued.token,
-        timeoutMs: timeoutMs + refreshTimeoutMs + 5_000,
+        timeoutMs: refreshTimeoutMs > 0 ? timeoutMs + refreshTimeoutMs + 5_000 : timeoutMs,
         signal: initController.signal,
       });
       const getConfig = () => rpc.call('server.getConfig', {}).then((exit) => validateT3ServerConfig(unwrapRpcExit(exit)));
       config = await getConfig();
       clearTimeout(initTimer);
 
+      if (!(refreshTimeoutMs > 0)) return config;
+
       const plan = findStaleRefreshPlan(config, policy, readNow());
       if (plan.staleProviderIds.length === 0 && plan.staleSourceAccountKeys.length === 0) {
         return config;
       }
 
-      const deadline = Date.now() + refreshTimeoutMs;
-      const refreshCall = plan.needsGlobalRefresh
-        ? rpc.call('server.refreshProviders', {}).then(unwrapRpcExit)
-        : Promise.all(
-            plan.staleProviderIds.map((instanceId) =>
-              rpc.call('server.refreshProviders', { instanceId }).then(unwrapRpcExit),
-            ),
-          );
-      const refreshResult = await withDeadline(refreshCall, deadline - Date.now());
-      if (refreshResult.timedOut) return config;
-
-      while (true) {
-        const pollResult = await withDeadline(getConfig(), deadline - Date.now());
-        if (pollResult.timedOut) break;
-        config = pollResult.value;
-        if (areTargetsFresh(config, plan, policy, readNow())) break;
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) break;
-        await sleep(Math.min(pollIntervalMs, remaining));
-      }
-      return config;
+      return await refreshStaleTargets({
+        rpc,
+        getConfig,
+        initialConfig: config,
+        plan,
+        policy,
+        readNow,
+        monotonicNow: readMonotonic,
+        sleep,
+        refreshTimeoutMs,
+        pollIntervalMs,
+      });
     } finally {
       clearTimeout(initTimer);
       rpc?.close();

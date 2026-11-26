@@ -109,7 +109,13 @@ export function startMockT3Server({
         if (msg._tag === 'Request' && msg.tag === 'server.getConfig') {
           requests.push({ tag: msg.tag, payload: msg.payload });
           const count = ++getConfigCount;
-          const payload = getServerConfig ? getServerConfig(count, msg.payload) : serverConfigPayload;
+          let exit;
+          try {
+            const payload = getServerConfig ? getServerConfig(count, msg.payload) : serverConfigPayload;
+            exit = { _tag: 'Success', value: payload };
+          } catch (error) {
+            exit = { _tag: 'Failure', cause: { message: error?.message ?? String(error) } };
+          }
           socket.write(encodeWsTextFrame(JSON.stringify({ _tag: 'Ping' })));
           setTimeout(() => {
             socket.write(
@@ -117,21 +123,27 @@ export function startMockT3Server({
                 JSON.stringify({
                   _tag: 'Exit',
                   requestId: msg.id,
-                  exit: { _tag: 'Success', value: payload },
+                  exit,
                 }),
               ),
             );
           }, 10);
         } else if (msg._tag === 'Request' && msg.tag === 'server.refreshProviders') {
           requests.push({ tag: msg.tag, payload: msg.payload });
-          const payload = onRefreshProviders ? onRefreshProviders(msg.payload) : { providers: [] };
+          let exit;
+          try {
+            const payload = onRefreshProviders ? onRefreshProviders(msg.payload) : { providers: [] };
+            exit = { _tag: 'Success', value: payload };
+          } catch (error) {
+            exit = { _tag: 'Failure', cause: { message: error?.message ?? String(error) } };
+          }
           setTimeout(() => {
             socket.write(
               encodeWsTextFrame(
                 JSON.stringify({
                   _tag: 'Exit',
                   requestId: msg.id,
-                  exit: { _tag: 'Success', value: payload },
+                  exit,
                 }),
               ),
             );

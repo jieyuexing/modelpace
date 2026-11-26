@@ -80,7 +80,7 @@ For multi-lane runs, call `plan` before dispatching each lane, note the actual `
 
 ## MCP server
 
-Start command: `node <checkout>/bin/modelpace-mcp.mjs` (stdio; after an npm release: `npx -y -p modelpace modelpace-mcp`, because the package is `modelpace` and `modelpace-mcp` is only its second binary). Optional environment: `MODELPACE_AUTO=1`, `MODELPACE_CONFIG`, `MODELPACE_SCORES`, `MODELPACE_ORIGIN`, `MODELPACE_TOKEN`, `MODELPACE_SNAPSHOT`.
+Start command: `node <checkout>/bin/modelpace-mcp.mjs` (stdio; after an npm release: `npx -y -p modelpace modelpace-mcp`, because the package is `modelpace` and `modelpace-mcp` is only its second binary). Optional environment: `MODELPACE_AUTO=1`, `MODELPACE_T3_REFRESH_TIMEOUT`, `MODELPACE_CONFIG`, `MODELPACE_SCORES`, `MODELPACE_ORIGIN`, `MODELPACE_TOKEN`, `MODELPACE_SNAPSHOT`.
 
 Register it with the client the user runs (use absolute paths):
 
@@ -110,7 +110,7 @@ Inside T3 Code there is no separate MCP setting for this: T3 Code starts Claude 
 
 | Tool | Arguments (all optional unless marked) | Returns |
 | --- | --- | --- |
-| `dispatch_plan` | `task`, `tier`, `slot`, `waitMinutes`, `claudeModel`, `configPath`, `scoresPath`, `t3Auto`, `t3Origin`, `snapshotPath`, `snapshot`, `budgetPath`, `includeSpeed`, `speedMetrics`, `days` | The plan object above |
+| `dispatch_plan` | `task`, `tier`, `slot`, `waitMinutes`, `claudeModel`, `configPath`, `scoresPath`, `t3Auto`, `t3RefreshTimeoutSeconds`, `t3Origin`, `snapshotPath`, `snapshot`, `budgetPath`, `includeSpeed`, `speedMetrics`, `days` | The plan object above |
 | `dispatch_record` | `record` (required), `scoresPath`, `configPath` | `{ file, identity, task, warnings }` |
 | `dispatch_scores` | `scoresPath`, `configPath` | Cells with pass rate, 90% interval, median duration, cost; ranking per task |
 | `dispatch_speed` | `days`, `scoresPath`, `configPath` | `{ days, ranking, metrics, sources, warnings }` |
@@ -120,7 +120,7 @@ Failures come back as a tool result with `isError: true` and a message that says
 ## Data and privacy
 
 - Network: only the T3 origin you give (`--t3-origin`) or the local T3 Code server found by `--t3-auto`. No telemetry.
-- `--t3-auto` (or `MODELPACE_AUTO=1`) runs the local T3 CLI: `t3 auth session issue --scope orchestration:read --ttl 2m --label modelpace`, reads `server.getConfig`, and revokes the session. If any enabled instance has missing `usageLimits` or `usageLimits.checkedAt` older than `pacing.maxSnapshotAgeMinutes` (default 15), it calls `server.refreshProviders` for those instances and polls `server.getConfig` for up to 40 seconds until refreshed (falling back to the `refresh` action if still stale); when data is already fresh, no extra RPC is sent. The token can only read orchestration state, not open terminals or write files, and lives at most 2 minutes. It is on only when you pass the flag or variable; ask the user before first use, or avoid it with `--snapshot FILE` or `--t3-origin URL` plus `MODELPACE_TOKEN`. Each `plan` issues one session; `serve --t3-auto` issues one every 15 seconds.
+- `--t3-auto` (or `MODELPACE_AUTO=1`) runs the local T3 CLI: `t3 auth session issue --scope orchestration:read --ttl 2m --label modelpace`, reads `server.getConfig`, and revokes the session. Refresh is off by default (`0`, single `server.getConfig` read). When explicitly enabled via `--t3-refresh-timeout <seconds>`, `t3RefreshTimeoutSeconds`, or `MODELPACE_T3_REFRESH_TIMEOUT` (> 0), if any enabled instance has missing `usageLimits` or `usageLimits.checkedAt` older than `pacing.maxSnapshotAgeMinutes` (default 15), it calls `server.refreshProviders` — causing T3 to probe each stale provider (spawning the official CLI once per Antigravity account) — and polls `server.getConfig` for at most the given number of seconds (stopping early when all refresh, 10s after the latest target refreshes if another stays stale, or on error by falling back to the last successfully read config); when data is already fresh, no extra RPC is sent. The token can only read orchestration state, not open terminals or write files, and lives at most 2 minutes. It is on only when you pass the flag or variable; ask the user before first use, or avoid it with `--snapshot FILE` or `--t3-origin URL` plus `MODELPACE_TOKEN`. Each `plan` issues one session; `serve --t3-auto` issues one every 15 seconds.
 - Local files read: the config, snapshot and budget files you pass; the ledger; and, only for `speed`, `dashboard`, `serve`, `plan --speed-scan` and `includeSpeed`, session logs for timestamps, model names and token counts (`~/.claude/projects`, `~/.codex/sessions`, the OpenCode database, `~/.gemini/antigravity`; override with `MODELPACE_CLAUDE_DIR`, `MODELPACE_CODEX_DIR`, `MODELPACE_OPENCODE_DB`, `MODELPACE_ANTIGRAVITY_PATHS`).
 - Local files written: the ledger (default `$XDG_DATA_HOME/modelpace/scores.jsonl`, i.e. `~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows; mode 0600) and the speed cache (`~/.cache/modelpace/speed-cache.json`). Missing directories are created with mode 0700; existing ones are left alone.
 - Credential files are never read. Prefer `MODELPACE_TOKEN` or `--t3-token-cmd` over `--t3-token`, which shows in the process list.

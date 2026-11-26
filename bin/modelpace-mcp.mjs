@@ -9,7 +9,7 @@ import {
   collectDispatchScores,
   collectSpeed,
 } from '../src/index.mjs';
-import { planDispatch, resolveDays } from '../src/context.mjs';
+import { planDispatch, resolveDays, resolveT3RefreshTimeoutMsFromSources } from '../src/context.mjs';
 import pkg from '../package.json' with { type: 'json' };
 
 const SERVER_INFO = { name: 'modelpace', version: pkg.version };
@@ -52,7 +52,8 @@ export const MCP_TOOLS = [
         claudeModel: { type: 'string', description: 'Claude model family (for example sonnet, opus) when a Claude window is shared by family.' },
         configPath: CONFIG_PATH,
         scoresPath: SCORES_PATH,
-        t3Auto: { type: 'boolean', description: 'Read quota from the local T3 Code through a 2-minute orchestration:read session that is revoked afterwards (refreshes stale/missing enabled instances via server.refreshProviders and polls up to 40s; no extra calls when fresh; also enabled by MODELPACE_AUTO=1).' },
+        t3Auto: { type: 'boolean', description: 'Read quota from the local T3 Code through a 2-minute orchestration:read session that is revoked afterwards (also enabled by MODELPACE_AUTO=1). By default it only reads server.getConfig once; set t3RefreshTimeoutSeconds > 0 (or MODELPACE_T3_REFRESH_TIMEOUT) to refresh stale or missing enabled instances.' },
+        t3RefreshTimeoutSeconds: { type: 'number', minimum: 0, description: 'Optional opt-in timeout in seconds for refreshing stale/missing quota on t3Auto (or MODELPACE_T3_REFRESH_TIMEOUT; default 0, off). When > 0, triggers server.refreshProviders — probing each stale provider and spawning the official CLI once per Antigravity account — and blocks up to this many seconds (stopping early when all refresh, or 10s after the latest target refreshes).' },
         t3Origin: { type: 'string', description: 'URL of a running T3 server (for example http://127.0.0.1:3773). The bearer token comes from MODELPACE_TOKEN or MODELPACE_TOKEN_CMD.' },
         snapshotPath: { type: 'string', description: 'Path to a saved usage snapshot JSON (see docs/SCHEMA.md); also MODELPACE_SNAPSHOT. Snapshots older than 15 minutes produce "refresh".' },
         snapshot: { type: 'object', description: 'The same as snapshotPath, passed inline: a UsageSnapshot v2 or a raw T3 server.getConfig response.' },
@@ -126,6 +127,11 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
       ?? (snapFile ? JSON.parse(fs.readFileSync(path.resolve(snapFile), 'utf8')) : null);
     const origin = args.t3Origin ?? env.MODELPACE_ORIGIN;
     const auto = args.t3Auto === true || env.MODELPACE_AUTO === '1';
+    const refreshTimeoutMs = resolveT3RefreshTimeoutMsFromSources({
+      explicit: args.t3RefreshTimeoutSeconds,
+      explicitLabel: 't3RefreshTimeoutSeconds',
+      env,
+    });
     if (!rawSnapshot && !origin && !auto) {
       throw new Error('No usage source configured: set t3Auto: true (local T3 Code), t3Origin (with MODELPACE_TOKEN), snapshotPath, or snapshot; the MODELPACE_AUTO=1, MODELPACE_ORIGIN and MODELPACE_SNAPSHOT environment variables work too');
     }
@@ -143,6 +149,7 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
       bearer: env.MODELPACE_TOKEN,
       tokenCommand: env.MODELPACE_TOKEN_CMD,
       auto,
+      refreshTimeoutMs,
       budget: args.budgetPath ? JSON.parse(fs.readFileSync(path.resolve(args.budgetPath), 'utf8')) : null,
       scoresPath: args.scoresPath ?? env.MODELPACE_SCORES,
       speedMetrics: args.speedMetrics ?? null,

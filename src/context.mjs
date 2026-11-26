@@ -17,6 +17,7 @@ export async function gatherDispatchInputs({
   bearer,
   tokenCommand,
   auto = false,
+  refreshTimeoutMs,
   budget = null,
   scoresPath,
   speedMetrics = null,
@@ -31,7 +32,14 @@ export async function gatherDispatchInputs({
   if (rawSnapshot) {
     snapshot = normalizeSnapshot(rawSnapshot, { now: readNow() });
   } else if (auto) {
-    const config = await fetchT3AutoConfig({ env, origin, policy, now: readNow });
+    const resolvedRefreshTimeoutMs = refreshTimeoutMs ?? resolveT3RefreshTimeoutMsFromSources({ env });
+    const config = await fetchT3AutoConfig({
+      env,
+      origin,
+      policy,
+      now: readNow,
+      refreshTimeoutMs: resolvedRefreshTimeoutMs,
+    });
     snapshot = normalizeT3ConfigToSnapshot(config, readNow());
   } else if (origin) {
     snapshot = normalizeT3ConfigToSnapshot(await fetchT3ServerConfig({ origin, bearer, tokenCommand }), readNow());
@@ -74,4 +82,26 @@ export function resolveDays(value, label = 'days') {
   const days = Number(value);
   if (days < 1 || days > 365) throw new Error(`${label} must be an integer in 1..365`);
   return days;
+}
+
+/** 实时刷新超时（秒 -> 毫秒）：缺省 0（关闭）；非法负数或非数字报错。 */
+export function resolveT3RefreshTimeoutMs(value, label = 't3RefreshTimeoutSeconds') {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === 'boolean' || (typeof value === 'string' && value.trim() === '')) {
+    throw new Error(`${label} must be a non-negative number`);
+  }
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    throw new Error(`${label} must be a non-negative number`);
+  }
+  return seconds === 0 ? 0 : Math.max(1, Math.round(seconds * 1000));
+}
+
+export function resolveT3RefreshTimeoutMsFromSources({ explicit, explicitLabel, env = process.env } = {}) {
+  if (explicit !== undefined && explicit !== null) {
+    return resolveT3RefreshTimeoutMs(explicit, explicitLabel);
+  }
+  const fromEnv = env.MODELPACE_T3_REFRESH_TIMEOUT;
+  if (fromEnv === undefined || fromEnv === '') return 0;
+  return resolveT3RefreshTimeoutMs(fromEnv, 'MODELPACE_T3_REFRESH_TIMEOUT');
 }

@@ -343,7 +343,43 @@ function makeConfigSnapshot({ antigravityCheckedAt, claudeCheckedAt, codexChecke
   };
 }
 
-test('fresh quota makes zero server.refreshProviders calls on CLI --t3-auto and MCP MODELPACE_AUTO=1', async () => {
+test('default --t3-auto and MCP MODELPACE_AUTO=1 without refresh timeout do not call server.refreshProviders even when stale', async () => {
+  const sandbox = makeSandbox();
+  const cfgPath = path.join(sandbox.dir, 'policy.json');
+  fs.writeFileSync(cfgPath, JSON.stringify(REFRESH_POLICY));
+  const stalePayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T06:40:00.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+  const server = await startMockT3Server({ expectedToken: TOKEN, serverConfigPayload: stalePayload });
+  try {
+    sandbox.writeRuntime(server.origin);
+    let out = '';
+    const code = await runCli(
+      ['plan', '--t3-auto', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
+      { env: sandbox.env, write: (s) => { out += s; }, now: () => NOW },
+    );
+    assert.equal(code, 0);
+    assert.equal(JSON.parse(out).action, 'refresh');
+
+    const mcpDecision = await handleToolCall(
+      'dispatch_plan',
+      { task: 'slice', configPath: cfgPath },
+      { env: { ...sandbox.env, MODELPACE_AUTO: '1' }, now: () => NOW },
+    );
+    assert.equal(mcpDecision.action, 'refresh');
+
+    assert.deepEqual(
+      server.requests.map((r) => r.tag),
+      ['server.getConfig', 'server.getConfig'],
+    );
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('fresh quota with explicit refresh timeout makes zero server.refreshProviders calls on CLI and MCP', async () => {
   const sandbox = makeSandbox();
   const cfgPath = path.join(sandbox.dir, 'policy.json');
   fs.writeFileSync(cfgPath, JSON.stringify(REFRESH_POLICY));
@@ -357,7 +393,7 @@ test('fresh quota makes zero server.refreshProviders calls on CLI --t3-auto and 
     sandbox.writeRuntime(server.origin);
     let out = '';
     const code = await runCli(
-      ['plan', '--t3-auto', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
+      ['plan', '--t3-auto', '--t3-refresh-timeout', '40', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
       { env: sandbox.env, write: (s) => { out += s; }, now: () => NOW },
     );
     assert.equal(code, 0);
@@ -365,7 +401,7 @@ test('fresh quota makes zero server.refreshProviders calls on CLI --t3-auto and 
 
     const mcpDecision = await handleToolCall(
       'dispatch_plan',
-      { task: 'slice', configPath: cfgPath },
+      { task: 'slice', configPath: cfgPath, t3RefreshTimeoutSeconds: 40 },
       { env: { ...sandbox.env, MODELPACE_AUTO: '1' }, now: () => NOW },
     );
     assert.equal(mcpDecision.action, 'run');
@@ -380,7 +416,7 @@ test('fresh quota makes zero server.refreshProviders calls on CLI --t3-auto and 
   }
 });
 
-test('stale or missing quota triggers server.refreshProviders, polls until checkedAt refreshes, and plans with fresh data (CLI & MCP)', async () => {
+test('explicit refresh timeout with stale or missing quota triggers server.refreshProviders, stops immediately when all refresh, and plans with fresh data (CLI & MCP)', async () => {
   const sandbox = makeSandbox();
   const cfgPath = path.join(sandbox.dir, 'policy.json');
   fs.writeFileSync(cfgPath, JSON.stringify(REFRESH_POLICY));
@@ -414,7 +450,7 @@ test('stale or missing quota triggers server.refreshProviders, polls until check
     sandbox.writeRuntime(server.origin);
     let out = '';
     const code = await runCli(
-      ['plan', '--t3-auto', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
+      ['plan', '--t3-auto', '--t3-refresh-timeout', '40', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
       { env: sandbox.env, write: (s) => { out += s; }, now: () => NOW },
     );
     assert.equal(code, 0);
@@ -428,23 +464,136 @@ test('stale or missing quota triggers server.refreshProviders, polls until check
       ['antigravity', 'claudeAgent'],
     );
     assert.ok(refreshCalls.every((r) => r.payload.refreshModels === undefined));
+    // Stops immediately on the 2nd post-refresh poll once all targets are fresh
+    assert.equal(server.requests.filter((r) => r.tag === 'server.getConfig').length, 3);
 
-    // Reset state and verify MCP MODELPACE_AUTO=1 follows the same refresh-and-poll path
+    // Reset state and verify MCP MODELPACE_AUTO=1 with t3RefreshTimeoutSeconds follows the same path
     refreshed = false;
     pollsAfterRefresh = 0;
     server.requests.length = 0;
     const mcpDecision = await handleToolCall(
       'dispatch_plan',
-      { task: 'slice', configPath: cfgPath },
+      { task: 'slice', configPath: cfgPath, t3RefreshTimeoutSeconds: 40 },
       { env: { ...sandbox.env, MODELPACE_AUTO: '1' }, now: () => NOW },
     );
     assert.equal(mcpDecision.action, 'run');
     assert.ok(server.requests.some((r) => r.tag === 'server.refreshProviders'));
-    assert.ok(server.requests.filter((r) => r.tag === 'server.getConfig').length >= 3);
+    assert.equal(server.requests.filter((r) => r.tag === 'server.getConfig').length, 3);
     assert.deepEqual(
       sandbox.calls().map((call) => call[2]),
       ['issue', 'revoke', 'issue', 'revoke'],
     );
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('when server.refreshProviders or polling server.getConfig rejects, fetchT3AutoConfig returns the last read config without throwing', async () => {
+  const sandbox = makeSandbox();
+  const stalePayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T06:40:00.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+  const partialFreshPayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T07:04:55.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+
+  let mode = 'fail-refresh';
+  const server = await startMockT3Server({
+    expectedToken: TOKEN,
+    onRefreshProviders: () => {
+      if (mode === 'fail-refresh') throw new Error('refresh probe failed');
+      return { providers: [] };
+    },
+    getServerConfig: (count) => {
+      if (mode === 'fail-refresh') return stalePayload;
+      if (count === 1) return stalePayload;
+      if (count === 2) return partialFreshPayload;
+      throw new Error('polling getConfig failed');
+    },
+  });
+
+  try {
+    sandbox.writeRuntime(server.origin);
+    const configAfterRefreshErr = await fetchT3AutoConfig({
+      env: sandbox.env,
+      homeDir: sandbox.dir,
+      policy: REFRESH_POLICY,
+      now: () => NOW,
+      refreshTimeoutMs: 40_000,
+      pollIntervalMs: 1_000,
+    });
+    assert.equal(configAfterRefreshErr.providers[0].usageLimits.checkedAt, '2026-11-23T06:40:00.000Z');
+    const degradedDecision = decideDispatch({
+      snapshot: normalizeT3ConfigToSnapshot(configAfterRefreshErr, NOW),
+      policy: REFRESH_POLICY,
+      request: { task: 'slice' },
+      now: NOW,
+    });
+    assert.equal(degradedDecision.action, 'refresh');
+
+    mode = 'fail-poll';
+    const configAfterPollErr = await fetchT3AutoConfig({
+      env: sandbox.env,
+      homeDir: sandbox.dir,
+      policy: REFRESH_POLICY,
+      now: () => NOW,
+      refreshTimeoutMs: 40_000,
+      pollIntervalMs: 10,
+    });
+    // Preserves the partially refreshed config from poll 1 rather than the initial stale one
+    assert.equal(configAfterPollErr.providers[0].usageLimits.checkedAt, '2026-11-23T07:04:55.000Z');
+    assert.equal(configAfterPollErr.providers[1].usageLimits.checkedAt, '2026-11-23T06:42:00.000Z');
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('when one target refreshes and another stays stale, polling stops ~10s after the latest refresh instead of waiting for total timeout', async () => {
+  const sandbox = makeSandbox();
+  const stalePayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T06:40:00.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+  const partialFreshPayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T07:04:55.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+
+  let virtualMs = 0;
+  let refreshed = false;
+  const server = await startMockT3Server({
+    expectedToken: TOKEN,
+    onRefreshProviders: () => {
+      if (!refreshed) {
+        refreshed = true;
+        virtualMs += 2_000;
+      }
+      return { providers: [] };
+    },
+    getServerConfig: () => (refreshed ? partialFreshPayload : stalePayload),
+  });
+
+  try {
+    sandbox.writeRuntime(server.origin);
+    const config = await fetchT3AutoConfig({
+      env: sandbox.env,
+      homeDir: sandbox.dir,
+      policy: REFRESH_POLICY,
+      now: () => NOW,
+      monotonicNow: () => virtualMs,
+      sleep: async (ms) => {
+        virtualMs += ms;
+      },
+      refreshTimeoutMs: 40_000,
+      pollIntervalMs: 1_000,
+    });
+    assert.equal(virtualMs, 12_000);
+    assert.equal(config.providers[0].usageLimits.checkedAt, '2026-11-23T07:04:55.000Z');
+    assert.equal(config.providers[1].usageLimits.checkedAt, '2026-11-23T06:42:00.000Z');
   } finally {
     await server.close();
     sandbox.cleanup();
@@ -486,6 +635,102 @@ test('when quota remains stale past the refresh timeout, fetchT3AutoConfig retur
     });
     assert.equal(decision.action, 'refresh');
     assert.deepEqual(sandbox.calls().map((call) => call[2]), ['issue', 'revoke']);
+  } finally {
+    await server.close();
+    sandbox.cleanup();
+  }
+});
+
+test('CLI --t3-refresh-timeout, MCP t3RefreshTimeoutSeconds, and MODELPACE_T3_REFRESH_TIMEOUT validation and defaults', async () => {
+  const sandbox = makeSandbox();
+  const cfgPath = path.join(sandbox.dir, 'policy.json');
+  fs.writeFileSync(cfgPath, JSON.stringify(REFRESH_POLICY));
+  const stalePayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T06:40:00.000Z',
+    claudeCheckedAt: '2026-11-23T06:42:00.000Z',
+  });
+  const freshPayload = makeConfigSnapshot({
+    antigravityCheckedAt: '2026-11-23T07:04:55.000Z',
+    claudeCheckedAt: '2026-11-23T07:04:58.000Z',
+  });
+
+  let refreshed = false;
+  const server = await startMockT3Server({
+    expectedToken: TOKEN,
+    onRefreshProviders: () => {
+      refreshed = true;
+      return { providers: [] };
+    },
+    getServerConfig: () => (refreshed ? freshPayload : stalePayload),
+  });
+
+  try {
+    sandbox.writeRuntime(server.origin);
+
+    // Invalid CLI flags & env defaults
+    for (const bad of ['-1', 'abc', '']) {
+      await assert.rejects(
+        () => runCli(['plan', '--t3-auto', '--t3-refresh-timeout', bad, '--config', cfgPath], { env: sandbox.env, now: () => NOW }),
+        /--t3-refresh-timeout must be a non-negative number/,
+      );
+    }
+    for (const badEnv of ['-5', 'not-a-number', '   ']) {
+      await assert.rejects(
+        () => runCli(['plan', '--t3-auto', '--config', cfgPath], { env: { ...sandbox.env, MODELPACE_T3_REFRESH_TIMEOUT: badEnv }, now: () => NOW }),
+        /MODELPACE_T3_REFRESH_TIMEOUT must be a non-negative number/,
+      );
+    }
+    for (const badMcp of [-1, 'nope', true, '']) {
+      await assert.rejects(
+        () => handleToolCall('dispatch_plan', { task: 'slice', configPath: cfgPath, t3RefreshTimeoutSeconds: badMcp }, { env: { ...sandbox.env, MODELPACE_AUTO: '1' }, now: () => NOW }),
+        /t3RefreshTimeoutSeconds must be a non-negative number/,
+      );
+    }
+
+    // MODELPACE_T3_REFRESH_TIMEOUT enables refresh when CLI/MCP omits the explicit parameter
+    let out = '';
+    assert.equal(
+      await runCli(
+        ['plan', '--t3-auto', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
+        { env: { ...sandbox.env, MODELPACE_T3_REFRESH_TIMEOUT: '40' }, write: (s) => { out += s; }, now: () => NOW },
+      ),
+      0,
+    );
+    assert.equal(JSON.parse(out).action, 'run');
+    assert.ok(server.requests.some((r) => r.tag === 'server.refreshProviders'));
+
+    refreshed = false;
+    server.requests.length = 0;
+    const mcpFromEnv = await handleToolCall(
+      'dispatch_plan',
+      { task: 'slice', configPath: cfgPath },
+      { env: { ...sandbox.env, MODELPACE_AUTO: '1', MODELPACE_T3_REFRESH_TIMEOUT: '40' }, now: () => NOW },
+    );
+    assert.equal(mcpFromEnv.action, 'run');
+    assert.ok(server.requests.some((r) => r.tag === 'server.refreshProviders'));
+
+    // Explicit 0 overrides MODELPACE_T3_REFRESH_TIMEOUT=40 and disables refresh
+    refreshed = false;
+    server.requests.length = 0;
+    out = '';
+    assert.equal(
+      await runCli(
+        ['plan', '--t3-auto', '--t3-refresh-timeout', '0', '--config', cfgPath, '--task', 'slice', '--format', 'json'],
+        { env: { ...sandbox.env, MODELPACE_T3_REFRESH_TIMEOUT: '40' }, write: (s) => { out += s; }, now: () => NOW },
+      ),
+      0,
+    );
+    assert.equal(JSON.parse(out).action, 'refresh');
+    assert.equal(server.requests.some((r) => r.tag === 'server.refreshProviders'), false);
+
+    server.requests.length = 0;
+    const mcpOverrideZero = await handleToolCall(
+      'dispatch_plan',
+      { task: 'slice', configPath: cfgPath, t3RefreshTimeoutSeconds: 0 },
+      { env: { ...sandbox.env, MODELPACE_AUTO: '1', MODELPACE_T3_REFRESH_TIMEOUT: '40' }, now: () => NOW },
+    );
+    assert.equal(mcpOverrideZero.action, 'refresh');
+    assert.equal(server.requests.some((r) => r.tag === 'server.refreshProviders'), false);
   } finally {
     await server.close();
     sandbox.cleanup();

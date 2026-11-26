@@ -14,7 +14,7 @@ import {
   renderDashboardHtml,
   startDashboardServer,
 } from '../src/index.mjs';
-import { planDispatch, resolveDays } from '../src/context.mjs';
+import { planDispatch, resolveDays, resolveT3RefreshTimeoutMsFromSources } from '../src/context.mjs';
 
 const HELP_EN = `modelpace - Multi-model dispatch, quota pacing & acceptance scoring for T3 Code
 
@@ -41,6 +41,7 @@ Plan options:
   --t3-token TOKEN      Bearer token for T3 server (or MODELPACE_TOKEN)
   --t3-token-cmd CMD    Command to mint a short-lived bearer token (or MODELPACE_TOKEN_CMD)
   --t3-auto             Discover the local T3 Code and use a 2-minute session (or MODELPACE_AUTO=1)
+  --t3-refresh-timeout N  Max seconds to refresh stale/missing quota via T3 and poll (default: 0, off; or MODELPACE_T3_REFRESH_TIMEOUT)
   --scores FILE         JSONL acceptance scores file (or MODELPACE_SCORES; default: $XDG_DATA_HOME/modelpace/scores.jsonl)
   --speed FILE          Optional speed metrics JSON ({ "<model>": { "longRate": 120 } })
   --speed-scan          Measure Speed from local session logs and use it as a tie-breaker
@@ -250,6 +251,7 @@ export async function runCli(
       [
         '--config', '--slot', '--task', '--tier', '--wait-minutes', '--claude-model',
         '--snapshot', '--budget', '--t3-origin', '--t3-token', '--t3-token-cmd',
+        '--t3-refresh-timeout',
         '--scores', '--speed', '--format', '--lang', '--days', '--out', '--port', '--now',
       ],
       ['--t3-auto', '--speed-scan'],
@@ -259,6 +261,11 @@ export async function runCli(
     if (!['text', 'json'].includes(format)) throw new Error('--format must be text or json');
     if (!['en', 'zh'].includes(lang)) throw new Error('--lang must be en or zh');
     const days = resolveDays(opts.days, '--days');
+    const refreshTimeoutMs = resolveT3RefreshTimeoutMsFromSources({
+      explicit: opts['t3-refresh-timeout'],
+      explicitLabel: '--t3-refresh-timeout',
+      env,
+    });
     const fixedNow = opts.now === undefined ? null : Date.parse(opts.now);
     if (fixedNow !== null && !Number.isFinite(fixedNow)) throw new Error('--now must be an ISO 8601 timestamp');
     if (fixedNow !== null && cmd === 'serve') throw new Error('--now is not supported for serve');
@@ -290,6 +297,7 @@ export async function runCli(
         bearer: opts['t3-token'] ?? env.MODELPACE_TOKEN,
         tokenCommand: opts['t3-token-cmd'] ?? env.MODELPACE_TOKEN_CMD,
         auto: Boolean(opts['t3-auto']) || env.MODELPACE_AUTO === '1',
+        refreshTimeoutMs,
         budget: opts.budget ? readJsonFile(opts.budget) : null,
         scoresPath: opts.scores ?? env.MODELPACE_SCORES,
         speedMetrics: opts.speed ? readJsonFile(opts.speed) : null,

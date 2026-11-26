@@ -17,7 +17,7 @@ modelpace plan --t3-auto --task slice --format json
 
 - `--task`: `general` | `research` | `review` | `slice` (bounded implementation piece) | `long` (large or hard work). It selects the slot through the config.
 - Optional: `--tier T` (permission tier from the config; omit to skip tier gating), `--wait-minutes N` (willing to wait for a reset), `--speed-scan` (break ties by measured tok/s).
-- `--t3-auto` issues a 2-minute `orchestration:read` session on the local T3 Code, reads `server.getConfig` (if any enabled instance has missing or stale `usageLimits.checkedAt`, calls `server.refreshProviders` and polls up to 40s; no extra calls when fresh), and revokes it. If the user has not agreed to that, use `--snapshot FILE` or `--t3-origin URL` instead.
+- `--t3-auto` issues a 2-minute `orchestration:read` session on the local T3 Code, reads `server.getConfig` once by default (refresh off), and revokes it. Pass `--t3-refresh-timeout <seconds>` (MCP `t3RefreshTimeoutSeconds`, or `MODELPACE_T3_REFRESH_TIMEOUT`, default `0` / off) > 0 to opt in: if any enabled instance has missing or stale `usageLimits.checkedAt`, it calls `server.refreshProviders` — causing T3 to probe each stale provider (spawning the official CLI once per Antigravity account) — and blocks at most the given seconds (stopping early once all refresh, 10s after the latest target refreshes, or on error returning the last read config; no extra calls when fresh). If the user has not agreed to `--t3-auto`, use `--snapshot FILE` or `--t3-origin URL` instead.
 - Without `--config` the built-in policy for the official instances `codex`, `claudeAgent`, `antigravity` is used.
 
 Act on `action`:

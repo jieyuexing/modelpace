@@ -93,7 +93,7 @@ node ./bin/modelpace.mjs scores --scores demo-scores.jsonl
 
 ### 连接 T3 Code
 
-`--t3-auto` 会运行本机 T3 CLI（`t3 auth session issue --scope orchestration:read --ttl 2m --label modelpace`），用该令牌读取 `server.getConfig`，并在 `finally` 中吊销会话。若所有启用实例的 `usageLimits.checkedAt` 都未超过 `pacing.maxSnapshotAgeMinutes`（默认 15 分钟），不发额外 RPC；如有启用实例额度缺失或过期，会先为这些实例调用 `server.refreshProviders`，再轮询 `server.getConfig` 至多 40 秒等待更新（超时仍过期则按原样降级返回 `refresh` 动作）。会话最长 2 分钟，只能读取编排状态，不能开终端或写文件。它按命令显式开启（`--t3-auto` 或 `MODELPACE_AUTO=1`）；不想用就改用 `--snapshot`，或 `--t3-origin` 加自己的令牌。每次 `plan --t3-auto` 签发一次会话；`dashboard` 还会扫描本机会话日志算 Speed；`serve` 在页面打开期间每 15 秒重跑一遍完整加载，所以 `serve --t3-auto` 每 15 秒签发并吊销一次会话。
+`--t3-auto` 会运行本机 T3 CLI（`t3 auth session issue --scope orchestration:read --ttl 2m --label modelpace`），用该令牌读取 `server.getConfig`，并在 `finally` 中吊销会话。默认关闭刷新，只读取一次 `server.getConfig`；显式传入 `--t3-refresh-timeout <秒>`（或 MCP `t3RefreshTimeoutSeconds`、环境变量 `MODELPACE_T3_REFRESH_TIMEOUT`，默认 `0` 关闭）且值大于 0 时才开启刷新：若所有启用实例的 `usageLimits.checkedAt` 都未超过 `pacing.maxSnapshotAgeMinutes`（默认 15 分钟），不发额外 RPC；如有启用实例额度缺失或过期，会为这些实例调用 `server.refreshProviders`——触发 T3 去探测对应提供方（Antigravity 每个号会起一次官方 CLI）——并轮询 `server.getConfig`，最长阻塞时间等于给定秒数（全部变新、或至少一个变新后 10 秒内无新目标变新时提前结束；刷新或轮询出错、超时则返回最后一次成功读到的配置由决策核照常降级）。会话最长 2 分钟，只能读取编排状态，不能开终端或写文件。它按命令显式开启（`--t3-auto` 或 `MODELPACE_AUTO=1`）；不想用就改用 `--snapshot`，或 `--t3-origin` 加自己的令牌。每次 `plan --t3-auto` 签发一次会话；`dashboard` 还会扫描本机会话日志算 Speed；`serve` 在页面打开期间每 15 秒重跑一遍完整加载，所以 `serve --t3-auto` 每 15 秒签发并吊销一次会话。
 
 令牌建议走 `MODELPACE_TOKEN` 或 `--t3-token-cmd`，不要用命令行参数 `--t3-token`（进程列表可见）。
 
@@ -111,7 +111,7 @@ node ./bin/modelpace.mjs scores --scores demo-scores.jsonl
   - 区分 `qualified`、`trial`（冷启动不拦截）与 `below_threshold`（支持 `demote` / `strict` / `advisory`）。
   - 达标模型按成功任务耗时中位数升序，在容差范围内按 Speed `longRate`（tok/s）与 Even Pace 富余度决胜。
 - **本机 Speed 排行**：只读解析自己的会话日志（Claude Code、Codex、OpenCode，以及 Antigravity / Gemini 的通用事件格式）测出真实输出速度；稀疏对数直方图（桶比 1.02，中位数误差 ≤ 1%）、增量缓存，并作为 `plan` 的决胜因子。
-- **零配置连接 T3**（`--t3-auto`）：自动发现本机 T3 Code，经官方 `auth session issue` 签发 2 分钟、仅含 `orchestration:read` 的会话，读取 `server.getConfig`（启用实例额度缺失或过期时自动调用 `server.refreshProviders` 并轮询至多 40 秒；数据新鲜时无额外调用），用完必定吊销；不读取任何凭据文件。
+- **零配置连接 T3**（`--t3-auto`）：自动发现本机 T3 Code，经官方 `auth session issue` 签发 2 分钟、仅含 `orchestration:read` 的会话，默认只读取一次 `server.getConfig`，用完必定吊销；可选 `--t3-refresh-timeout <秒>`（或 `MODELPACE_T3_REFRESH_TIMEOUT`，默认关闭）显式开启过期刷新，触发 T3 探测各提供方（Antigravity 每个号会起一次官方 CLI），最长阻塞时间等于给定秒数（数据新鲜时无额外调用），不读取任何凭据文件。
 - **自包含仪表盘**：单文件 HTML（无 CDN、明暗主题、EN/ZH 切换），含额度与 Even Pace、速度排行及一键分享图（1200px @2x PNG）、验收评分与派发审计。
 - **CLI 与零依赖 MCP Server**：
   - `modelpace`（`plan`、`record`、`scores`、`speed`、`dashboard`、`serve`、`validate`、`init`，支持 `--lang en|zh` 与 `--format`）
