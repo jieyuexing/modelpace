@@ -17,7 +17,7 @@ modelpace plan --t3-auto --task slice --format json
 
 - `--task`: `general` | `research` | `review` | `slice` (bounded implementation piece) | `long` (large or hard work). It selects the slot through the config.
 - Optional: `--tier T` (permission tier from the config; omit to skip tier gating), `--wait-minutes N` (willing to wait for a reset), `--speed-scan` (break ties by measured tok/s).
-- `--t3-auto` issues a 2-minute `orchestration:read` session on the local T3 Code and revokes it. If the user has not agreed to that, use `--snapshot FILE` or `--t3-origin URL` instead.
+- `--t3-auto` issues a 2-minute `orchestration:read` session on the local T3 Code, reads `server.getConfig` (if any enabled instance has missing or stale `usageLimits.checkedAt`, calls `server.refreshProviders` and polls up to 40s; no extra calls when fresh), and revokes it. If the user has not agreed to that, use `--snapshot FILE` or `--t3-origin URL` instead.
 - Without `--config` the built-in policy for the official instances `codex`, `claudeAgent`, `antigravity` is used.
 
 Act on `action`:

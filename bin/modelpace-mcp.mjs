@@ -52,7 +52,7 @@ export const MCP_TOOLS = [
         claudeModel: { type: 'string', description: 'Claude model family (for example sonnet, opus) when a Claude window is shared by family.' },
         configPath: CONFIG_PATH,
         scoresPath: SCORES_PATH,
-        t3Auto: { type: 'boolean', description: 'Read quota from the local T3 Code through a 2-minute orchestration:read session that is revoked afterwards (also enabled by MODELPACE_AUTO=1).' },
+        t3Auto: { type: 'boolean', description: 'Read quota from the local T3 Code through a 2-minute orchestration:read session that is revoked afterwards (refreshes stale/missing enabled instances via server.refreshProviders and polls up to 40s; no extra calls when fresh; also enabled by MODELPACE_AUTO=1).' },
         t3Origin: { type: 'string', description: 'URL of a running T3 server (for example http://127.0.0.1:3773). The bearer token comes from MODELPACE_TOKEN or MODELPACE_TOKEN_CMD.' },
         snapshotPath: { type: 'string', description: 'Path to a saved usage snapshot JSON (see docs/SCHEMA.md); also MODELPACE_SNAPSHOT. Snapshots older than 15 minutes produce "refresh".' },
         snapshot: { type: 'object', description: 'The same as snapshotPath, passed inline: a UsageSnapshot v2 or a raw T3 server.getConfig response.' },
@@ -121,7 +121,6 @@ function loadPolicy(configPath, env) {
 export async function handleToolCall(name, args = {}, { env = process.env, now = () => Date.now() } = {}) {
   if (name === 'dispatch_plan') {
     const policy = loadPolicy(args.configPath, env);
-    const currentMs = now();
     const snapFile = args.snapshotPath ?? env.MODELPACE_SNAPSHOT;
     const rawSnapshot = args.snapshot
       ?? (snapFile ? JSON.parse(fs.readFileSync(path.resolve(snapFile), 'utf8')) : null);
@@ -150,7 +149,7 @@ export async function handleToolCall(name, args = {}, { env = process.env, now =
       speedScan: args.includeSpeed === true,
       days: resolveDays(args.days),
       env,
-      now: currentMs,
+      now,
     });
 
     return planned.decision;

@@ -160,7 +160,7 @@ Scoring (`modelpace scores`, MCP `dispatch_scores`): `failed` and `interrupted` 
 
 ## Snapshot (`schemaVersion: 2`)
 
-`plan --snapshot FILE|-` accepts this shape, a raw T3 `server.getConfig` response, or what `--t3-auto` / `--t3-origin` fetch live (which are converted to this shape). Timestamps are ISO 8601 strings.
+`plan --snapshot FILE|-` accepts this shape, a raw T3 `server.getConfig` response, or what `--t3-auto` / `--t3-origin` fetch live (which are converted to this shape; `--t3-auto` also triggers `server.refreshProviders` and polls `server.getConfig` up to 40 seconds if any enabled instance has missing or stale `usageLimits.checkedAt`, making zero extra calls when fresh). Timestamps are ISO 8601 strings.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

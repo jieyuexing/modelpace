@@ -46,7 +46,14 @@ function decodeWsFrames(buffer) {
   return { frames, rest: buffer.subarray(offset) };
 }
 
-export function startMockT3Server({ expectedToken = 'secret-token', serverConfigPayload }) {
+export function startMockT3Server({
+  expectedToken = 'secret-token',
+  serverConfigPayload,
+  getServerConfig,
+  onRefreshProviders,
+}) {
+  const requests = [];
+  let getConfigCount = 0;
   const server = http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/api/auth/websocket-ticket') {
       if (req.headers.authorization !== `Bearer ${expectedToken}`) {
@@ -100,6 +107,9 @@ export function startMockT3Server({ expectedToken = 'secret-token', serverConfig
           continue;
         }
         if (msg._tag === 'Request' && msg.tag === 'server.getConfig') {
+          requests.push({ tag: msg.tag, payload: msg.payload });
+          const count = ++getConfigCount;
+          const payload = getServerConfig ? getServerConfig(count, msg.payload) : serverConfigPayload;
           socket.write(encodeWsTextFrame(JSON.stringify({ _tag: 'Ping' })));
           setTimeout(() => {
             socket.write(
@@ -107,7 +117,21 @@ export function startMockT3Server({ expectedToken = 'secret-token', serverConfig
                 JSON.stringify({
                   _tag: 'Exit',
                   requestId: msg.id,
-                  exit: { _tag: 'Success', value: serverConfigPayload },
+                  exit: { _tag: 'Success', value: payload },
+                }),
+              ),
+            );
+          }, 10);
+        } else if (msg._tag === 'Request' && msg.tag === 'server.refreshProviders') {
+          requests.push({ tag: msg.tag, payload: msg.payload });
+          const payload = onRefreshProviders ? onRefreshProviders(msg.payload) : { providers: [] };
+          setTimeout(() => {
+            socket.write(
+              encodeWsTextFrame(
+                JSON.stringify({
+                  _tag: 'Exit',
+                  requestId: msg.id,
+                  exit: { _tag: 'Success', value: payload },
                 }),
               ),
             );
@@ -129,6 +153,7 @@ export function startMockT3Server({ expectedToken = 'secret-token', serverConfig
       const addr = server.address();
       resolve({
         origin: `http://127.0.0.1:${addr.port}`,
+        requests,
         close: () => {
           for (const s of sockets) s.destroy();
           return new Promise((done) => server.close(done));

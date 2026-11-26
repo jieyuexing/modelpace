@@ -258,17 +258,20 @@ export function unwrapRpcExit(exit) {
   return exit;
 }
 
+export function validateT3ServerConfig(config) {
+  if (!config || typeof config !== 'object' || !Array.isArray(config.providers)) {
+    throw new T3RpcError('server.getConfig did not return providers list', {
+      code: 'INVALID_SERVER_CONFIG',
+    });
+  }
+  return config;
+}
+
 export async function fetchT3ServerConfig(options = {}) {
   const rpc = await connectT3(options);
   try {
     const exit = await rpc.call('server.getConfig', {});
-    const config = unwrapRpcExit(exit);
-    if (!config || typeof config !== 'object' || !Array.isArray(config.providers)) {
-      throw new T3RpcError('server.getConfig did not return providers list', {
-        code: 'INVALID_SERVER_CONFIG',
-      });
-    }
-    return config;
+    return validateT3ServerConfig(unwrapRpcExit(exit));
   } finally {
     rpc.close();
   }

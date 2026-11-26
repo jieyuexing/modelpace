@@ -24,15 +24,17 @@ export async function gatherDispatchInputs({
   days = 30,
   scan = {},
   env = process.env,
-  now = Date.now(),
+  now = Date.now,
 } = {}) {
+  const readNow = typeof now === 'function' ? now : () => now;
   let snapshot = null;
   if (rawSnapshot) {
-    snapshot = normalizeSnapshot(rawSnapshot, { now });
+    snapshot = normalizeSnapshot(rawSnapshot, { now: readNow() });
   } else if (auto) {
-    snapshot = normalizeT3ConfigToSnapshot(await fetchT3AutoConfig({ env, origin }), now);
+    const config = await fetchT3AutoConfig({ env, origin, policy, now: readNow });
+    snapshot = normalizeT3ConfigToSnapshot(config, readNow());
   } else if (origin) {
-    snapshot = normalizeT3ConfigToSnapshot(await fetchT3ServerConfig({ origin, bearer, tokenCommand }), now);
+    snapshot = normalizeT3ConfigToSnapshot(await fetchT3ServerConfig({ origin, bearer, tokenCommand }), readNow());
   }
   if (snapshot && budget) snapshot = overlayBudgetEntries(snapshot, budget);
 
@@ -40,14 +42,16 @@ export async function gatherDispatchInputs({
 
   let speed = null;
   if (speedScan) {
-    speed = await collectSpeed({ days, now, scan, scoresFile: scoresPath, scoring: policy.scoring, env });
+    speed = await collectSpeed({ days, now: readNow(), scan, scoresFile: scoresPath, scoring: policy.scoring, env });
   }
   return { snapshot, scoresSummary, speed, speedMetrics: speedMetrics ?? speed?.metrics ?? null };
 }
 
 /** 汇集输入后做一次派发决策；没有快照来源时 decision 为 null，由调用方决定是否报错。 */
-export async function planDispatch({ policy, request = {}, now = Date.now(), ...inputArgs } = {}) {
-  const inputs = await gatherDispatchInputs({ policy, now, ...inputArgs });
+export async function planDispatch({ policy, request = {}, now = Date.now, ...inputArgs } = {}) {
+  const readNow = typeof now === 'function' ? now : () => now;
+  const inputs = await gatherDispatchInputs({ policy, now: readNow, ...inputArgs });
+  const decisionNow = readNow();
   const decision = inputs.snapshot
     ? decideDispatch({
         snapshot: inputs.snapshot,
@@ -55,10 +59,10 @@ export async function planDispatch({ policy, request = {}, now = Date.now(), ...
         scoresSummary: inputs.scoresSummary,
         speedMetrics: inputs.speedMetrics,
         request,
-        now,
+        now: decisionNow,
       })
     : null;
-  return { ...inputs, decision, now };
+  return { ...inputs, decision, now: decisionNow };
 }
 
 /** 速度窗口天数：1..365 的整数，缺省 30。 */

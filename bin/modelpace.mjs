@@ -277,7 +277,6 @@ export async function runCli(
     const hasSource = Boolean(snapshotSource || opts['t3-origin'] || env.MODELPACE_ORIGIN || opts['t3-auto'] || env.MODELPACE_AUTO === '1');
 
     const load = async () => {
-      const currentMs = fixedNow ?? now();
       const rawSnapshot = !snapshotSource
         ? null
         : snapshotSource === '-'
@@ -297,7 +296,7 @@ export async function runCli(
         speedScan: Boolean(opts['speed-scan']) || cmd !== 'plan',
         days,
         env,
-        now: currentMs,
+        now: fixedNow ?? now,
       });
     };
 
