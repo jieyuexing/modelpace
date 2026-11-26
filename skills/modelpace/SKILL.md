@@ -68,7 +68,7 @@ Save it as `record.json` (the same content ships as `examples/record.example.jso
 modelpace record --json record.json
 ```
 
-All fifteen fields are required; a rejected record names the missing or wrong field. Judge honestly: `accepted` is whether the result was accepted after your verification, `firstPass` means no rework, `falseReport` means the executor claimed success that verification contradicted.
+All fifteen fields are required; a rejected record names the missing or wrong field. Optional fields (`outcome`, `abortReason`, `executedModel`) are documented in [docs/SCHEMA.md](../../docs/SCHEMA.md): when `task_status` reports a non-empty `executedModel`, pass it through on the record so `record` can warn if `executor.model` does not match what actually ran (after `scoring.aliases.model`). Judge honestly: `accepted` is whether the result was accepted after your verification, `firstPass` means no rework, `falseReport` means the executor claimed success that verification contradicted.
 
 A candidate becomes `qualified` after 5 successful records for the same executor and task (success: accepted, no false report, no scope violation, at most one rework round). Until then it is `trial` and still eligible.
 
@@ -80,3 +80,8 @@ modelpace speed --days 30
 ```
 
 `scores` shows pass rate with a 90% interval, sample count, median duration and cost per executor and task. `speed` ranks models by tok/s measured from local session logs; rows marked `lowSample` (fewer than 20 long requests) are not used as tie-breakers. For a visual overview run `modelpace dashboard --t3-auto --out dashboard.html` and render the file with `html_render`.
+
+## 4. Multi-lane and unattended runs
+
+- **Multi-lane runs**: when breaking a larger task into multiple lanes, call `plan` / `dispatch_plan` separately before starting each lane, and log the actual `provider`, `model`, and `effort` used in your own run log. After independently verifying each lane, write one `record` / `dispatch_record` entry per lane, copying `executedModel` from `task_status` into the record when present.
+- **Unattended quota stop lines**: before starting an unattended run, agree on reserve stop lines with the user (such as how much weekly quota must stay untouched) and encode them in the existing config fields (`weeklyMinRemainingPercent`, `defaultMinRemainingPercent`, `longTaskMinRemainingPercent`; see [docs/SCHEMA.md](../../docs/SCHEMA.md)). Stop opening new lanes as soon as `plan` returns `pause`. Whether paid credits may be used is for the user to decide; modelpace does not make that decision.

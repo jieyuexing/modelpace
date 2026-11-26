@@ -73,6 +73,9 @@ test('MCP tools/list：每个工具与每个参数都有 agent 能据此选用�
   assert.match(plan.description, /recommended\.executor/);
   const record = MCP_TOOLS.find((tool) => tool.name === 'dispatch_record');
   assert.match(record.description, /AFTER/);
+  assert.match(record.description, /executedModel/);
+  assert.match(record.description, /warnings/);
+  assert.match(record.inputSchema.properties.record.description, /executedModel/);
   assert.deepEqual(record.inputSchema.required, ['record']);
 });
 

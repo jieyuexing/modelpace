@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `record` and MCP `dispatch_record` accept optional `executedModel` (`string | null`, e.g. from `task_status`). On write, non-empty `executedModel` and `executor.model` are normalized via `scoring.aliases.model`; mismatches still append the record and return a warning (in CLI text output, CLI `record --format json`, and `dispatch_record` `warnings[]`) advising to set `executor.model` to the model that actually ran.
+- Documented multi-lane dispatch usage (`plan` per lane, log actual `provider`/`model`/`effort`, `record` per verified lane with `executedModel`) and unattended quota stop lines (`weeklyMinRemainingPercent`, `defaultMinRemainingPercent`, `longTaskMinRemainingPercent`, stop on `pause`, user-decided paid credits) across `SKILL.md`, `AGENTS.md`, `README.md`, `README.zh-CN.md`, and `docs/SCHEMA.md`.
+
 - `plan` ranks qualified candidates by duration bands anchored at the fastest median, so the recommendation no longer depends on the order candidates are listed in the config. Before, near-tie durations were compared pair by pair (10 vs 11 vs 12 minutes: each neighbour a tie, the ends not), which together with the speed tie-breaker formed a cycle.
 - `plan` only suggests redeeming a reset credit (`redeem`, or running below the floor as `credit_low`) when the usable credits cover every blocking window. Before, a credit that covered one of two exhausted windows was suggested, and redeeming it left the candidate blocked.
 - MCP `dispatch_scores` no longer returns the raw ledger records next to the summary. With a few hundred records the result grew past what an MCP client accepts in one tool result; `modelpace scores --format json` still prints them.

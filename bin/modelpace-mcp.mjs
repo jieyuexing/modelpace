@@ -68,14 +68,14 @@ export const MCP_TOOLS = [
     name: 'dispatch_record',
     description:
       'Call this AFTER you have independently verified a delegated task (tests, diff review or explicit user acceptance), never on the sub-agent\'s own report. It appends one acceptance record to the ledger so later dispatch_plan calls can prefer models that really pass; a candidate becomes "qualified" after 5 successful records for the same executor and task. ' +
-      'Build `record.executor` from `recommended.executor` of the plan you followed plus a `site` label (for example "local"). All fifteen record fields are required; two optional fields mark runs that did not finish: `outcome` (completed|failed|interrupted|cancelled, default completed) and `abortReason` (quota|stall|timeout|error|user|other). failed/interrupted count as failures (accepted and firstPass must be false, durationMin may be null); cancelled is recorded but excluded from the pass-rate denominator. An invalid record is rejected with a message naming the missing or wrong field. Returns { file, identity, task }.',
+      'Build `record.executor` from `recommended.executor` of the plan you followed plus a `site` label (for example "local"). All fifteen record fields are required; three optional fields are allowed: `outcome` (completed|failed|interrupted|cancelled, default completed), `abortReason` (quota|stall|timeout|error|user|other) and `executedModel` (the model reported by the provider, e.g. from task_status.executedModel, string or null). failed/interrupted count as failures (accepted and firstPass must be false, durationMin may be null); cancelled is recorded but excluded from the pass-rate denominator. When `executedModel` is non-empty and differs from `executor.model` (after `scoring.aliases.model`), the record is still written and `warnings` advises setting `executor.model` to the model that actually ran. An invalid record is rejected with a message naming the missing or wrong field. Returns { file, identity, task, warnings }.',
     inputSchema: {
       type: 'object',
       required: ['record'],
       properties: {
         record: {
           type: 'object',
-          description: 'One acceptance record with all fifteen fields: date (YYYY-MM-DD), taskId, title, task (general|research|review|slice|long), executor { provider, model, effort, tier, site }, scorer, accepted, firstPass, reworkRounds, scopeViolation, falseReport, stoppedOnDenial (boolean or null), durationMin (number or null), quotaDelta (number or null), note (string); optional outcome and abortReason (strings or null, abortReason only with a non-completed outcome). Field meanings: docs/SCHEMA.md.',
+          description: 'One acceptance record with all fifteen fields: date (YYYY-MM-DD), taskId, title, task (general|research|review|slice|long), executor { provider, model, effort, tier, site }, scorer, accepted, firstPass, reworkRounds, scopeViolation, falseReport, stoppedOnDenial (boolean or null), durationMin (number or null), quotaDelta (number or null), note (string); optional outcome, abortReason (strings or null, abortReason only with a non-completed outcome) and executedModel (string or null, provider-reported model). Field meanings: docs/SCHEMA.md.',
         },
         scoresPath: SCORES_PATH,
         configPath: CONFIG_PATH,

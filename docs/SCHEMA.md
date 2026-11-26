@@ -80,7 +80,7 @@ Candidates are tried in `priority` order (default: array order). Each one target
 
 ## Record (one JSON object per ledger line)
 
-The ledger is JSONL at `--scores FILE`, `MODELPACE_SCORES`, or by default `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). The fifteen fields below are required; two optional fields (`outcome`, `abortReason`) are described after the table. Unknown fields are rejected.
+The ledger is JSONL at `--scores FILE`, `MODELPACE_SCORES`, or by default `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). The fifteen fields below are required; three optional fields (`outcome`, `abortReason`, `executedModel`) are described after the table. Unknown fields are rejected.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -118,6 +118,13 @@ Validation:
 - For these three outcomes `durationMin` may be `null` even when the provider is not in `durationUnreadableProviders`.
 
 Scoring (`modelpace scores`, MCP `dispatch_scores`): `failed` and `interrupted` count as failures (`f`, so they enter `n = s + f`). `cancelled` is recorded but counted in neither `s` nor `f`, so it never lowers the pass rate; a cell with only cancelled runs has `n = 0` and stays in trial. Every cell also carries `outcomes` (`{ completed, failed, interrupted, cancelled }`), `abortReasons` (non-zero counts per reason, over all non-completed records), `aborted` (`failed + interrupted`) and `cancelled`. The text output appends `, aborted N (reason:count, ...)` and `, cancelled N` to a cell's line only when there are any.
+
+### Optional `executedModel`
+
+`executedModel` (`string | null`) is optional and may be omitted (old ledger lines remain valid) or set to `null`. Use it to record the model identifier reported by the host/provider (for example `task_status.executedModel`, which T3 normalizes to a catalog slug for Claude and may leave `null` for Codex).
+
+- Absent or `null`: behavior is unchanged.
+- Non-empty string: on write (`record` / `dispatch_record`), both `executedModel` and `executor.model` are normalized through `scoring.aliases.model` and compared. If they differ, the record is still written and a warning is returned (in CLI `record` text output, `--format json`, and `warnings[]` of `dispatch_record`) advising that `executor.model` should be set to the model that actually ran. `executedModel` does not change `scoreIdentity` or pass-rate grouping.
 
 ### `executor` and the score identity
 

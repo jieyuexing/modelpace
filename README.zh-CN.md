@@ -87,7 +87,9 @@ node ./bin/modelpace.mjs scores --scores demo-scores.jsonl
 
 示例记录是假的，`demo-scores.jsonl` 只是演示用账本，用完请删除；不带 `--scores` 时记录会写进你真正的账本（见下）。
 
-账本默认在 `$XDG_DATA_HOME/modelpace/scores.jsonl`（`~/.local/share/modelpace/scores.jsonl`；Windows 为 `%LOCALAPPDATA%\modelpace\scores.jsonl`），可用 `--scores FILE` 或 `MODELPACE_SCORES` 改。`record` 新建缺失目录时权限为 0700、账本文件 0600，不改已存在目录的权限。Agent 可参照 [skills/modelpace/SKILL.md](./skills/modelpace/SKILL.md)。没跑完的任务可用可选字段 `outcome`（`completed`、`failed`、`interrupted`、`cancelled`）与 `abortReason`（`quota`、`stall`、`timeout`、`error`、`user`、`other`）记录；`cancelled` 会显示但不计入通过率分母。同一执行身份、同一任务有 5 条成功记录后，候选变为 `qualified`；记录字段与身份规则见 [docs/SCHEMA.md](./docs/SCHEMA.md)。
+账本默认在 `$XDG_DATA_HOME/modelpace/scores.jsonl`（`~/.local/share/modelpace/scores.jsonl`；Windows 为 `%LOCALAPPDATA%\modelpace\scores.jsonl`），可用 `--scores FILE` 或 `MODELPACE_SCORES` 改。`record` 新建缺失目录时权限为 0700、账本文件 0600，不改已存在目录的权限。Agent 可参照 [skills/modelpace/SKILL.md](./skills/modelpace/SKILL.md)。没跑完的任务可用可选字段 `outcome`（`completed`、`failed`、`interrupted`、`cancelled`）与 `abortReason`（`quota`、`stall`、`timeout`、`error`、`user`、`other`）记录；`cancelled` 会显示但不计入通过率分母。可选字段 `executedModel`（如从 `task_status` 抄来）会在写入时经 `scoring.aliases.model` 归一后与 `executor.model` 核对，不一致时照常写入并给出警告。同一执行身份、同一任务有 5 条成功记录后，候选变为 `qualified`；记录字段与身份规则见 [docs/SCHEMA.md](./docs/SCHEMA.md)。
+
+拆分多条 lane 时，每条 lane 派发前各自 `plan`、在运行记录里记下实跑的 `provider`/`model`/`effort`，验收后逐条 `record`（有 `executedModel` 就带上）。无人值守长跑前先与用户约定停线，写进 `weeklyMinRemainingPercent`、`defaultMinRemainingPercent`、`longTaskMinRemainingPercent`，`plan` 返回 `pause` 即停止开新 lane；是否使用付费额度由用户决定，modelpace 不代决。
 
 ### 连接 T3 Code
 

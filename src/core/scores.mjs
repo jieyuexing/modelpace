@@ -11,7 +11,7 @@ const FIELDS = [
   'accepted', 'firstPass', 'reworkRounds', 'scopeViolation', 'falseReport',
   'stoppedOnDenial', 'durationMin', 'quotaDelta', 'note',
 ];
-const OPTIONAL_FIELDS = ['outcome', 'abortReason'];
+const OPTIONAL_FIELDS = ['outcome', 'abortReason', 'executedModel'];
 const IDENTITY = ['provider', 'model', 'effort', 'tier', 'site'];
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -127,6 +127,9 @@ export function validateDispatchRecord(record, config = {}) {
   if (isUnfinished(record) && (record.accepted || record.firstPass)) {
     throw new Error(`Invalid dispatch record: outcome ${record.outcome} requires accepted and firstPass to be false`);
   }
+  if (record.executedModel != null && !nonempty(record.executedModel)) {
+    throw new Error('Invalid dispatch record: executedModel must be non-empty string or null');
+  }
   return record;
 }
 
@@ -171,6 +174,22 @@ export function resolveScoresFile({ file, scoresFile, env = process.env } = {}) 
   return defaultScoresFile(env);
 }
 
+function checkExecutedModelMismatch(record, config = {}) {
+  if (!nonempty(record.executedModel)) return [];
+  const modelAlias = config.aliases?.model ?? DEFAULT_SCORING_CONFIG.aliases?.model ?? {};
+  const actualRaw = record.executedModel.trim();
+  const expectedRaw = record.executor.model;
+  const actual = modelAlias[actualRaw] ?? actualRaw;
+  const expected = modelAlias[expectedRaw] ?? expectedRaw;
+  if (actual === expected) return [];
+  const normalized = actual !== actualRaw || expected !== expectedRaw
+    ? ` (normalized: "${actual}" vs "${expected}")`
+    : '';
+  return [
+    `executedModel "${actualRaw}" does not match executor.model "${expectedRaw}"${normalized}; executor.model should be set to the model that actually ran.`,
+  ];
+}
+
 export function appendDispatchRecord(record, options = {}) {
   const config = options.config ?? {};
   validateDispatchRecord(record, config);
@@ -182,6 +201,7 @@ export function appendDispatchRecord(record, options = {}) {
       `Invalid dispatch record: durationMin cannot be null unless provider (${record.executor.provider}) is listed in durationUnreadableProviders`,
     );
   }
+  const warnings = checkExecutedModelMismatch(record, config);
   const file = resolveScoresFile(options);
   const dir = path.dirname(file);
   // 只对本次新建的目录收紧权限（mkdir 的 mode 受 umask 影响，故不依赖它），已存在的目录保持原样。
@@ -197,7 +217,7 @@ export function appendDispatchRecord(record, options = {}) {
   } finally {
     fs.closeSync(fd);
   }
-  return { file, identity: executorIdentity(record.executor), task: record.task };
+  return { file, identity: executorIdentity(record.executor), task: record.task, warnings };
 }
 
 export function readDispatchRecords(options = {}) {

@@ -358,3 +358,133 @@ test('MCP dispatch_speed ranks local speed over stdio and dispatch_plan can fold
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('executedModel warnings across CLI (text & json) and MCP dispatch_record', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-exec-cli-mcp-'));
+  const scoresFile = path.join(tmpDir, 'scores.jsonl');
+  const configFile = path.join(tmpDir, 'config.json');
+  const cfg = JSON.parse(fs.readFileSync(EXAMPLE_CONFIG, 'utf8'));
+  cfg.scoring.aliases.model = { 'claude-opus-4-5-20251101': 'claude-opus-4-5' };
+  fs.writeFileSync(configFile, JSON.stringify(cfg), 'utf8');
+
+  const baseRecord = {
+    date: '2026-11-23',
+    taskId: 'em-1',
+    title: 'Executed model check',
+    task: 'slice',
+    executor: { provider: 'codex', model: 'gpt-5.3-codex', effort: 'high', tier: 'personal', site: 'local' },
+    scorer: 'orchestrator',
+    accepted: true,
+    firstPass: true,
+    reworkRounds: 0,
+    scopeViolation: false,
+    falseReport: false,
+    stoppedOnDenial: null,
+    durationMin: 3.0,
+    quotaDelta: 2,
+    note: 'Checked',
+  };
+
+  let child;
+  try {
+    const runRecord = async (record, extraArgs = []) => {
+      let out = '';
+      const code = await runCli(
+        ['record', '--json', '-', '--scores', scoresFile, '--config', configFile, ...extraArgs],
+        {
+          stdin: (async function* () { yield JSON.stringify(record); })(),
+          write: (s) => { out += s; },
+        },
+      );
+      assert.equal(code, 0);
+      return out;
+    };
+
+    // 一致、null、缺省不出警告（文本与 json）
+    for (const extra of [{}, { executedModel: null }, { executedModel: 'gpt-5.3-codex' }]) {
+      const textOut = await runRecord({ ...baseRecord, ...extra });
+      assert.match(textOut, /^Recorded /);
+      assert.doesNotMatch(textOut, /Warning:/);
+
+      const jsonOut = JSON.parse(await runRecord({ ...baseRecord, ...extra }, ['--format', 'json']));
+      assert.deepEqual(jsonOut.warnings, []);
+    }
+
+    // 经 alias 归一后一致不出警告
+    const aliasedOut = JSON.parse(await runRecord({
+      ...baseRecord,
+      executor: { provider: 'claude', model: 'claude-opus-4-5', effort: 'high', tier: 'personal', site: 'local' },
+      executedModel: 'claude-opus-4-5-20251101',
+    }, ['--format', 'json']));
+    assert.deepEqual(aliasedOut.warnings, []);
+
+    // 不一致时照写并在 CLI text 和 --format json 输出警告
+    const mismatchRecord = { ...baseRecord, taskId: 'em-mismatch', executedModel: 'claude-opus-4-5' };
+    const mismatchText = await runRecord(mismatchRecord);
+    assert.match(mismatchText, /Recorded /);
+    assert.match(mismatchText, /Warning: .*executedModel "claude-opus-4-5".*executor\.model "gpt-5\.3-codex"/);
+    assert.match(mismatchText, /executor\.model should be set to the model that actually ran/);
+
+    const mismatchJson = JSON.parse(await runRecord(mismatchRecord, ['--format', 'json']));
+    assert.equal(mismatchJson.warnings.length, 1);
+    assert.match(mismatchJson.warnings[0], /executor\.model should be set to the model that actually ran/);
+
+    // MCP dispatch_record over stdio
+    child = spawn(process.execPath, [MCP_PATH], {
+      env: {
+        ...process.env,
+        MODELPACE_CONFIG: configFile,
+        MODELPACE_SCORES: scoresFile,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let outBuf = '';
+    const waiting = new Map();
+    child.stdout.on('data', (chunk) => {
+      outBuf += chunk.toString('utf8');
+      for (let nl = outBuf.indexOf('\n'); nl !== -1; nl = outBuf.indexOf('\n')) {
+        const message = JSON.parse(outBuf.slice(0, nl));
+        outBuf = outBuf.slice(nl + 1);
+        waiting.get(message.id)?.(message);
+      }
+    });
+    const call = (id, name, args) =>
+      new Promise((resolve) => {
+        waiting.set(id, resolve);
+        child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } })}\n`);
+      });
+
+    const mcpMatch = await call(1, 'dispatch_record', {
+      record: {
+        ...baseRecord,
+        taskId: 'mcp-em-alias',
+        executor: { provider: 'claude', model: 'claude-opus-4-5', effort: 'high', tier: 'personal', site: 'local' },
+        executedModel: 'claude-opus-4-5-20251101',
+      },
+    });
+    assert.equal(mcpMatch.result.isError, false);
+    assert.deepEqual(mcpMatch.result.structuredContent.warnings, []);
+
+    const mcpNull = await call(2, 'dispatch_record', {
+      record: { ...baseRecord, taskId: 'mcp-em-null', executedModel: null },
+    });
+    assert.equal(mcpNull.result.isError, false);
+    assert.deepEqual(mcpNull.result.structuredContent.warnings, []);
+
+    const mcpMismatch = await call(3, 'dispatch_record', {
+      record: { ...baseRecord, taskId: 'mcp-em-mismatch', executedModel: 'claude-opus-4-5' },
+    });
+    assert.equal(mcpMismatch.result.isError, false);
+    assert.equal(mcpMismatch.result.structuredContent.warnings.length, 1);
+    assert.match(mcpMismatch.result.structuredContent.warnings[0], /executor\.model should be set to the model that actually ran/);
+
+    const mcpScores = await call(4, 'dispatch_scores', {});
+    assert.equal(mcpScores.result.structuredContent.totalRecords, 12);
+
+    child.stdin.end();
+    await new Promise((resolve) => child.on('close', resolve));
+  } finally {
+    child?.kill();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

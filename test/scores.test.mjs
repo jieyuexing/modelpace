@@ -317,3 +317,89 @@ test('formatDispatchScores appends abort and cancel notes only when present', ()
   assert.match(formatDispatchScores(summarizeDispatchScores(cancelled)).at(-1), /trial n=0 \(<5\), cancelled 1$/);
   assert.match(formatDispatchScores(summarizeDispatchScores(cancelled), { lang: 'zh' }).at(-1), /试用样本不足 n=0，取消 1$/);
 });
+
+test('executedModel: optional validation, mismatch warning, alias normalization, and legacy ledger fixture', () => {
+  assert.doesNotThrow(() => validateDispatchRecord(makeRecord()));
+  assert.doesNotThrow(() => validateDispatchRecord(makeRecord({ executedModel: null })));
+  assert.doesNotThrow(() => validateDispatchRecord(makeRecord({ executedModel: 'gpt-5.3-codex' })));
+  assert.throws(() => validateDispatchRecord(makeRecord({ executedModel: '' })), /executedModel must be non-empty string or null/);
+  assert.throws(() => validateDispatchRecord(makeRecord({ executedModel: '   ' })), /executedModel must be non-empty string or null/);
+  assert.throws(() => validateDispatchRecord(makeRecord({ executedModel: 123 })), /executedModel must be non-empty string or null/);
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modelpace-exec-model-'));
+  const scoresFile = path.join(tmpDir, 'scores.jsonl');
+  const aliasConfig = {
+    aliases: {
+      provider: { claudeAgent: 'claude' },
+      tier: { '-': 'default' },
+      model: { 'claude-opus-4-5-20251101': 'claude-opus-4-5' },
+    },
+  };
+
+  try {
+    // 缺省、null、完全一致：均不出警告
+    assert.deepEqual(appendDispatchRecord(makeRecord({ taskId: 'omitted' }), { scoresFile }).warnings, []);
+    assert.deepEqual(appendDispatchRecord(makeRecord({ taskId: 'null-val', executedModel: null }), { scoresFile }).warnings, []);
+    assert.deepEqual(appendDispatchRecord(makeRecord({ taskId: 'exact', executedModel: 'gpt-5.3-codex' }), { scoresFile }).warnings, []);
+
+    // 经 scoring.aliases.model 归一后一致：不出警告
+    const aliasedMatch = appendDispatchRecord(
+      makeRecord({
+        taskId: 'alias-1',
+        executor: { provider: 'claudeAgent', model: 'claude-opus-4-5', effort: 'high', tier: 'default', site: 'local' },
+        executedModel: 'claude-opus-4-5-20251101',
+      }),
+      { scoresFile, config: aliasConfig },
+    );
+    assert.deepEqual(aliasedMatch.warnings, []);
+
+    const aliasedReverse = appendDispatchRecord(
+      makeRecord({
+        taskId: 'alias-2',
+        executor: { provider: 'claudeAgent', model: 'claude-opus-4-5-20251101', effort: 'high', tier: 'default', site: 'local' },
+        executedModel: 'claude-opus-4-5',
+      }),
+      { scoresFile, config: aliasConfig },
+    );
+    assert.deepEqual(aliasedReverse.warnings, []);
+
+    // 不一致时照写，不拒收，并返回可操作警告
+    const mismatch = appendDispatchRecord(
+      makeRecord({
+        taskId: 'mismatch-1',
+        executor: { provider: 'codex', model: 'gpt-5.3-codex', effort: 'high', tier: 'personal', site: 'local' },
+        executedModel: 'claude-opus-4-5-20251101',
+      }),
+      { scoresFile, config: aliasConfig },
+    );
+    assert.equal(mismatch.warnings.length, 1);
+    assert.match(mismatch.warnings[0], /executedModel "claude-opus-4-5-20251101"/);
+    assert.match(mismatch.warnings[0], /executor\.model "gpt-5\.3-codex"/);
+    assert.match(mismatch.warnings[0], /executor\.model should be set to the model that actually ran/);
+
+    // 写入旧账本 fixture（15 字段 + 17 字段不含 executedModel）与新记录混读
+    const legacyFixture = path.join(tmpDir, 'legacy.jsonl');
+    const legacy15 = makeRecord({ taskId: 'legacy-15' });
+    const legacy17 = makeRecord({
+      taskId: 'legacy-17',
+      accepted: false,
+      firstPass: false,
+      durationMin: null,
+      outcome: 'failed',
+      abortReason: 'error',
+    });
+    const withExec = makeRecord({ taskId: 'with-exec', executedModel: 'gpt-5.3-codex' });
+    fs.writeFileSync(
+      legacyFixture,
+      [legacy15, legacy17, withExec].map((r) => JSON.stringify(r)).join('\n') + '\n',
+      'utf8',
+    );
+    const loaded = readDispatchRecords({ scoresFile: legacyFixture, config: aliasConfig });
+    assert.equal(loaded.length, 3);
+    assert.equal(loaded[0].executedModel, undefined);
+    assert.equal(loaded[2].executedModel, 'gpt-5.3-codex');
+    assert.equal(readDispatchRecords({ scoresFile, config: aliasConfig }).length, 6);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

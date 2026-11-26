@@ -20,7 +20,7 @@ const HELP_EN = `modelpace - Multi-model dispatch, quota pacing & acceptance sco
 
 Usage:
   modelpace plan [options]       Recommend the best delegate_task target
-  modelpace record --json FILE|- Append a dispatch acceptance record (JSONL)
+  modelpace record --json FILE|- [--format text|json] Append a dispatch acceptance record (JSONL)
   modelpace scores [options]     Summarize and rank acceptance scores
   modelpace speed [options]      Local Speed leaderboard from session logs
   modelpace dashboard [options]  Write a self-contained HTML dashboard (quota, speed, scores)
@@ -205,8 +205,10 @@ export async function runCli(
   }
 
   if (cmd === 'record') {
-    const { opts } = parseFlags(rest, ['--json', '--scores', '--config']);
+    const { opts } = parseFlags(rest, ['--json', '--scores', '--config', '--format']);
     if (!opts.json) throw new Error('record requires --json FILE|- (a record file; see examples/record.example.json)');
+    const format = opts.format ?? 'text';
+    if (!['text', 'json'].includes(format)) throw new Error('--format must be text or json');
     const record = opts.json === '-' ? parseJson(await readStdin(stdin), 'The record on stdin') : readJsonFile(opts.json, 'see examples/record.example.json');
     const { policy } = loadConfig(opts.config, env);
     const result = appendDispatchRecord(record, {
@@ -214,7 +216,14 @@ export async function runCli(
       env,
       config: policy.scoring,
     });
-    write(`Recorded ${result.identity} × ${result.task} -> ${result.file}\n`);
+    if (format === 'json') {
+      write(JSON.stringify(result, null, 2) + '\n');
+    } else {
+      write(`Recorded ${result.identity} × ${result.task} -> ${result.file}\n`);
+      for (const warning of result.warnings) {
+        write(`Warning: ${warning}\n`);
+      }
+    }
     return 0;
   }
 

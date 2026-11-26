@@ -96,7 +96,9 @@ node ./bin/modelpace.mjs scores --scores demo-scores.jsonl
 
 The example record is fake and `demo-scores.jsonl` is a throwaway demo ledger: delete it afterwards, and without `--scores` records go to your real ledger (see below).
 
-The ledger defaults to `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). Override it with `--scores FILE` or `MODELPACE_SCORES`. `record` creates missing directories with mode 0700 and the ledger with mode 0600, and leaves existing directories untouched. Agents can follow [skills/modelpace/SKILL.md](./skills/modelpace/SKILL.md). Runs that did not finish can be recorded with the optional `outcome` (`completed`, `failed`, `interrupted`, `cancelled`) and `abortReason` (`quota`, `stall`, `timeout`, `error`, `user`, `other`); `cancelled` runs are shown but kept out of the pass-rate denominator. A candidate becomes `qualified` after 5 successful records for the same executor identity and task; the record fields and the identity rules are in [docs/SCHEMA.md](./docs/SCHEMA.md#record-one-json-object-per-ledger-line).
+The ledger defaults to `$XDG_DATA_HOME/modelpace/scores.jsonl` (`~/.local/share/modelpace/scores.jsonl`; `%LOCALAPPDATA%\modelpace\scores.jsonl` on Windows). Override it with `--scores FILE` or `MODELPACE_SCORES`. `record` creates missing directories with mode 0700 and the ledger with mode 0600, and leaves existing directories untouched. Agents can follow [skills/modelpace/SKILL.md](./skills/modelpace/SKILL.md). Runs that did not finish can be recorded with the optional `outcome` (`completed`, `failed`, `interrupted`, `cancelled`) and `abortReason` (`quota`, `stall`, `timeout`, `error`, `user`, `other`); `cancelled` runs are shown but kept out of the pass-rate denominator. Optional `executedModel` (for example from `task_status.executedModel`) is compared against `executor.model` after `scoring.aliases.model` and returns a warning on mismatch without rejecting the write. A candidate becomes `qualified` after 5 successful records for the same executor identity and task; the record fields and the identity rules are in [docs/SCHEMA.md](./docs/SCHEMA.md#record-one-json-object-per-ledger-line).
+
+For multi-lane runs, plan before each lane, record the `provider`/`model`/`effort` actually used in your run log, and record each verified lane separately (carrying `executedModel` when present). Before unattended runs, agree on reserve stop lines with the user via `weeklyMinRemainingPercent`, `defaultMinRemainingPercent`, and `longTaskMinRemainingPercent`, stop opening lanes when `plan` returns `pause`, and leave paid-credit decisions to the user.
 
 ### Connecting to T3 Code
 
@@ -204,7 +206,7 @@ After the npm release replace `node /absolute/path/.../modelpace-mcp.mjs` with `
 
 Tools exposed:
 - `dispatch_plan` — accepts `t3Auto` / `MODELPACE_AUTO=1` and `includeSpeed` (measures local Speed as a tie-breaker); returns `{ action, recommended: { target: { providerInstanceId, model, options }, executor, delegateReady }, waitUntil, nextCheckAt, reasons, candidates }`
-- `dispatch_record` — validates and appends an acceptance record to JSONL
+- `dispatch_record` — validates and appends an acceptance record to JSONL, returning `{ file, identity, task, warnings }`
 - `dispatch_scores` — returns ranked cells, Beta 90% intervals, median durations, and nominal costs
 - `dispatch_speed` — returns the local speed ranking (`days`), the metrics map `plan` consumes, per-source scan counts and warnings
 

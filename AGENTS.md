@@ -74,7 +74,9 @@ Never record a result on the sub-agent's own say-so. `plan` never changes anythi
 | `refresh` | The usage snapshot is missing or stale. Re-run with `--t3-auto` / `--t3-origin`; when replaying a file, pass `--now` near its `observedAt`. |
 | `pause` | Every candidate is blocked. Read `reasons`, retry at `nextCheckAt`, or tell the user. |
 
-To record, copy `recommended.executor` (`provider`, `model`, `effort`, `tier`) into the record's `executor` and add `"site": "local"`. A candidate becomes `qualified` after 5 successful records with the same executor and task; until then it is `trial` and is never blocked.
+To record, copy `recommended.executor` (`provider`, `model`, `effort`, `tier`) into the record's `executor` and add `"site": "local"`. If the host reports `executedModel` (such as `task_status.executedModel`), include it as an optional field; `record` still writes on a mismatch against `executor.model` (after `scoring.aliases.model`) and warns you to update `executor.model`. A candidate becomes `qualified` after 5 successful records with the same executor and task; until then it is `trial` and is never blocked.
+
+For multi-lane runs, call `plan` before dispatching each lane, note the actual `provider`, `model`, and `effort` in your run log, and record once per verified lane (with `executedModel` when available). Before unattended runs, agree on quota stop lines with the user and put them in `weeklyMinRemainingPercent`, `defaultMinRemainingPercent`, and `longTaskMinRemainingPercent` ([docs/SCHEMA.md](./docs/SCHEMA.md)); stop opening new lanes when `plan` returns `pause`. Paid-credit usage is the user's decision, not modelpace's.
 
 ## MCP server
 
@@ -109,7 +111,7 @@ Inside T3 Code there is no separate MCP setting for this: T3 Code starts Claude 
 | Tool | Arguments (all optional unless marked) | Returns |
 | --- | --- | --- |
 | `dispatch_plan` | `task`, `tier`, `slot`, `waitMinutes`, `claudeModel`, `configPath`, `scoresPath`, `t3Auto`, `t3Origin`, `snapshotPath`, `snapshot`, `budgetPath`, `includeSpeed`, `speedMetrics`, `days` | The plan object above |
-| `dispatch_record` | `record` (required), `scoresPath`, `configPath` | `{ file, identity, task }` |
+| `dispatch_record` | `record` (required), `scoresPath`, `configPath` | `{ file, identity, task, warnings }` |
 | `dispatch_scores` | `scoresPath`, `configPath` | Cells with pass rate, 90% interval, median duration, cost; ranking per task |
 | `dispatch_speed` | `days`, `scoresPath`, `configPath` | `{ days, ranking, metrics, sources, warnings }` |
 
